@@ -7,10 +7,12 @@
 load_signal_mappings_batch(metainfo, hdf5, batch)
 }
 \arguments{
+\item{metainfo}{data.table of metainfo loaded with metainfo_load_batch}
+
 \item{hdf5}{Open hdf5 object}
 }
 \value{
-vector with batch names
+Nothing, signal mappings will be added to the metainfo object in memory
 }
 \description{
 Loads the signal mappings associated with a batch

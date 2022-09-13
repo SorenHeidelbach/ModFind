@@ -2,9 +2,9 @@
 
 export("%>%")
 export(get_hdf_batches)
-export(load_signal_mapping_metainfo)
 export(load_signal_mappings_batch)
-export(metainfo_load_all_batches)
+export(metainfo_load_all)
+export(metainfo_load_batch)
 export(unnest_dt)
 import(data.table)
 importFrom(magrittr,"%>%")
