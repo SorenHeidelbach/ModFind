@@ -150,7 +150,6 @@ normalise_current = function(signal_mapping) {
   )]
 }
 
-
 batch_current_by_reference = function(ref_to_signal, current_norm) {
   current_norm_batch = mapply(
     function(start, current) {
@@ -172,8 +171,6 @@ batch_current_by_reference = function(ref_to_signal, current_norm) {
     SIMPLIFY = FALSE
   )
 }
-
-
 
 #' Load signal mappings of one batch
 #' 
@@ -204,5 +201,4 @@ load_signal_mappings_batch = function(metainfo, hdf5, batch) {
   ]
   gc()
   return("Loaded signal mappings")
-
 }
