@@ -38,6 +38,7 @@ preprocess <- function(nat_mapping,
     )
   add_mapping(metainfo, read_mapping)
 
+  print("Splitting metainfo")
   metainfo_list <- split(metainfo, by = c("chunk_ref", "batch", "type"), flatten = FALSE)
 
   print("Loading singal")
@@ -178,7 +179,7 @@ add_mapping <- function(metainfo, read_mapping) {
   metainfo[
     read_mapping,
     on = c('read_id'='qname'),
-    `:=`(chunk = i.chunk, reference = i.rname, type = i.type)
+    `:=`(chunk = i.chunk, reference = i.rname, type = i.type, pos = i.pos, strand = i.strand)
   ][
     , chunk_ref := paste0(chunk, "_", reference)
   ]
@@ -195,19 +196,9 @@ add_mapping <- function(metainfo, read_mapping) {
 get_reference_context <- function(signal, mapping) {
   signal[
       , list(unlist(current_batched, recursive = FALSE)),
-      by = .(read_id, type, chunk)
+      by = .(read_id, type, chunk, reference, pos, strand)
     ][
       , pos_read := 1:.N, by = .(read_id, type, chunk)
-    ][
-      mapping,
-      on = c('read_id'='qname'),
-      `:=`(
-        chunk = i.chunk,
-        reference = i.rname,
-        type = i.type,
-        pos = i.pos,
-        strand = i.strand
-      )
     ][
       ,
       pos_ref := pos_read + pos - 1
