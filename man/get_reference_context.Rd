@@ -4,7 +4,7 @@
 \alias{get_reference_context}
 \title{Load signal mappings of one batch}
 \usage{
-get_reference_context(signal, mapping)
+get_reference_context(signal)
 }
 \arguments{
 \item{signal}{data.table of metainfo loaded with read_metainfo}
