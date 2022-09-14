@@ -63,7 +63,7 @@ preprocess <- function(nat_mapping,
       )
       signal <- rbindlist(unlist(metainfo_list[[chunk]], recursive = FALSE))
       metainfo_list[chunk] <- NULL
-      signal <- get_reference_context(signal, read_mapping)
+      signal <- get_reference_context(signal)
       fwrite(
         signal,
         file = glue::glue("{out}/{chunk}.tsv"),
@@ -193,7 +193,7 @@ add_mapping <- function(metainfo, read_mapping) {
 #' @param mapping Read mappings dt
 #' @return Nothing, signal mappings will be added to the metainfo object in memory
 #' @export
-get_reference_context <- function(signal, mapping) {
+get_reference_context <- function(signal) {
   signal[
       , list(unlist(current_batched, recursive = FALSE)),
       by = .(read_id, type, chunk, reference, pos, strand)
