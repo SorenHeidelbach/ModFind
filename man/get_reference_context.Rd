@@ -8,8 +8,6 @@ get_reference_context(signal)
 }
 \arguments{
 \item{signal}{data.table of metainfo loaded with read_metainfo}
-
-\item{mapping}{Read mappings dt}
 }
 \value{
 Nothing, signal mappings will be added to the metainfo object in memory

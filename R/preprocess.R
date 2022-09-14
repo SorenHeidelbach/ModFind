@@ -190,7 +190,6 @@ add_mapping <- function(metainfo, read_mapping) {
 #' Loads the signal mappings associated with a batch
 #' 
 #' @param signal data.table of metainfo loaded with read_metainfo
-#' @param mapping Read mappings dt
 #' @return Nothing, signal mappings will be added to the metainfo object in memory
 #' @export
 get_reference_context <- function(signal) {
