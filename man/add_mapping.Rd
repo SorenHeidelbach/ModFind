@@ -10,8 +10,6 @@ add_mapping(metainfo, read_mapping)
 \item{metainfo}{data.table of metainfo loaded with read_metainfo}
 
 \item{read_mapping}{read mappings}
-
-\item{batch}{Batch to load signal mappings from}
 }
 \value{
 Nothing, signal mappings will be added to the metainfo object in memory

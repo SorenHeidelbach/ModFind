@@ -23,6 +23,8 @@ preprocess(
 
 \item{pcr_signal}{HDF5 object of PCR signal mappings}
 
+\item{out}{Output path for preprocessed signal mappings}
+
 \item{chunk_size}{Size to chunk reference into (default 1e4 bases)}
 
 \item{threads}{Number of jobs to run parallel (default 1; >1 not supported on windows)}

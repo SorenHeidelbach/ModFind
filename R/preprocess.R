@@ -6,6 +6,7 @@
 #' @param pcr_mapping Path to PCR sorted bam file
 #' @param nat_signal HDF5 object of NAT signal mappings
 #' @param pcr_signal HDF5 object of PCR signal mappings
+#' @param out Output path for preprocessed signal mappings
 #' @param chunk_size Size to chunk reference into (default 1e4 bases)
 #' @param threads Number of jobs to run parallel (default 1; >1 not supported on windows)
 #' @return preprocessed chunk saved to 'out'
@@ -140,7 +141,7 @@ get_batches <- function(hdf5){
 #' 
 #' @param metainfo data.table of metainfo loaded with read_metainfo
 #' @param hdf5 Open hdf5 object
-#' @param batch Batch to load signal mappings from
+#' @param hdf_batch Batch to load signal mappings from
 #' @return Nothing, signal mappings will be added to the metainfo object in memory
 #' @export
 add_signal = function(metainfo, hdf5, hdf_batch) {
@@ -171,7 +172,6 @@ add_signal = function(metainfo, hdf5, hdf_batch) {
 #' 
 #' @param metainfo data.table of metainfo loaded with read_metainfo
 #' @param read_mapping read mappings
-#' @param batch Batch to load signal mappings from
 #' @return Nothing, signal mappings will be added to the metainfo object in memory
 #' @export
 add_mapping <- function(metainfo, read_mapping) {

@@ -11,7 +11,7 @@ add_signal(metainfo, hdf5, hdf_batch)
 
 \item{hdf5}{Open hdf5 object}
 
-\item{batch}{Batch to load signal mappings from}
+\item{hdf_batch}{Batch to load signal mappings from}
 }
 \value{
 Nothing, signal mappings will be added to the metainfo object in memory
