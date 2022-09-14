@@ -40,6 +40,8 @@ preprocess <- function(nat_mapping,
 
   print("Splitting metainfo")
   metainfo_list <- split(metainfo, by = c("chunk_ref", "batch", "type"), flatten = FALSE)
+  rm(read_mapping)
+  gc()
 
   print("Loading singal")
   chunks <- names(metainfo_list)
@@ -138,7 +140,6 @@ get_batches <- function(hdf5){
 #' Add signal mapping to metainfo
 #' 
 #' Loads the signal mappings associated with a batch
-#' 
 #' 
 #' @param metainfo data.table of metainfo loaded with read_metainfo
 #' @param hdf5 Open hdf5 object
