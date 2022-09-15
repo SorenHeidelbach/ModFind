@@ -21,8 +21,9 @@ calculate_statistics <- function(signal,
       add_frame_statistics(frame_size = window, value_col = value_col) %>%
       remove_when_signal_missing() %>%
       calculate_wilcox_two_sided()
-      
-    setnafill(chunk_diff, fill = fill_na)
+    chunk_diff[
+      , `:=`(nat = NULL, pcr = NULL)
+    ]
     return(chunk_diff)
   }
 
