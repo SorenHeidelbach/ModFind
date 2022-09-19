@@ -47,7 +47,7 @@ gather_nat_and_pcr <- function(chunk){
   dcast(
     chunk,
     strand + pos_ref ~ type,
-    value.var = "V1", fun.agg = function(x) list(x)
+    value.var = "signal", fun.agg = function(x) list(x)
   )
 }
 
