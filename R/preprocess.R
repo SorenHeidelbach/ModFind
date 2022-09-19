@@ -11,41 +11,74 @@
 #' @param threads Number of jobs to run parallel (default 1; >1 not supported on windows)
 #' @return preprocessed chunk saved to 'out'
 #' @export
-preprocess <- function(nat_mapping, 
-                       pcr_mapping, 
-                       nat_signal, 
+preprocess <- function(nat_mapping,
+                       pcr_mapping,
+                       nat_signal,
                        pcr_signal,
                        out,
                        chunk_size = 1e4,
                        threads = 1,
                        debug = FALSE,
-                       contigs = "all") {
-  # Forking not possible on windows systems
+                       contigs = "all",
+                       pvp = FALSE) {
+    # Forking not possible on windows systems
   if (.Platform$OS.type == "windows") {
     threads <- 1
   }
   if (debug) {
     logger::log_threshold(logger::TRACE)
   }
+
   logger::log_debug("Loading read mapping")
   hdf5 <- list(
     pcr = pcr_signal,
     nat = nat_signal
   )
 
-  read_mapping <- preprocess_mappings(nat_mapping, pcr_mapping, chunk_size)
+  pcr <- load_mapping(pcr_mapping)
+  pcr[, type := "pcr"]
+  nat <- load_mapping(nat_mapping)
+  nat[, type := "nat"]
+  read_mapping <- rbind(pcr, nat)
+  read_mapping[
+      , chunk := pos %/% chunk_size
+    ]
+  read_mapping <- rbind(
+      read_mapping,
+      get_overextending_reads(read_mapping, chunk_size)
+  )
 
-  logger::log_debug("Loading metainfo")
+  if(pvp){
+    read_mapping <- read_mapping[
+      type == "pcr"
+    ][
+      sample(1:.N, .N/2), type := "nat"
+    ]
+  }
+
+  read_mapping <- downsample(read_mapping,  chunk_size = chunk_size)
+
+
+  metainfo_nat <- read_metainfo_all(hdf5[["nat"]])
+  metainfo_pcr <- read_metainfo_all(hdf5[["pcr"]])
+
   metainfo <- rbind(
-    read_metainfo_all(hdf5[["nat"]]),
-    read_metainfo_all(hdf5[["pcr"]])
-    )
-
-  add_mapping(metainfo, read_mapping)
+    metainfo_nat[
+      read_mapping[type == "nat"],
+      on = c('read_id'='qname')
+    ],
+    metainfo_pcr[
+      read_mapping[type == "pcr"],
+      on = c('read_id'='qname')
+    ]
+  )
+  data.table::setnames(metainfo, c("rname"), c("reference"))
+  metainfo[
+    , chunk_ref := paste(chunk, reference, sep = "_")
+  ]
   rm(read_mapping)
   gc()
 
-  logger::log_debug("Splitting metainfo")
   metainfo_list <- split(metainfo, by = c("chunk_ref", "batch", "type"), flatten = FALSE)
 
   chunks <- names(metainfo_list)
@@ -54,7 +87,7 @@ preprocess <- function(nat_mapping,
     chunks <- chunks[contigs %>%
       lapply(function(contig) grepl(contig, chunks)) %>%
       transpose() %>%
-      lapply(any) %>% 
+      lapply(any) %>%
       unlist()]
     logger::log_info(paste0("Only processing chunks: ", paste0(chunks, collapse = ", ")))
   }
@@ -64,15 +97,27 @@ preprocess <- function(nat_mapping,
     function(chunk) {
       logger::log_debug(glue::glue("Processing {chunk}"))
       batches <- names(metainfo_list[[chunk]])
-      lapply(
+      successfully_read <- lapply(
         batches,
         function(batch) {
-          logger::log_debug(glue::glue("    Processing {batch}"))
+          logger::log_debug(glue::glue("\tProcessing {batch}"))
           types <- names(metainfo_list[[chunk]][[batch]])
           lapply(
             types,
             function(type) {
-              add_signal(metainfo_list[[chunk]][[batch]][[type]], hdf5[[type]], batch)
+              logger::log_debug(glue::glue("\t\t{type}"))
+              dacs <- hdf5[[type]][[glue::glue('/Batches/{batch}/Dacs')]][]
+              ref_to_signal <-  hdf5[[type]][[glue::glue('/Batches/{batch}/Ref_to_signal')]][]
+              tryCatch(
+                add_signal(
+                  metainfo_list[[chunk]][[batch]][[type]],
+                  dacs,
+                  ref_to_signal
+                ),
+                error = function(e) FALSE
+              )
+              rm("dacs", "ref_to_signal")
+              gc()
             } # type
           )
         } # batch
@@ -94,7 +139,6 @@ preprocess <- function(nat_mapping,
     } # chunk
   )
 }
-
 #' Read metainfo from signal_mappings.hdf
 #' 
 #' This function load metainformation of each read in a batch in a singal mapping hdf5 file.
@@ -114,7 +158,16 @@ read_metainfo = function(hdf5, batch) {
     shift_frompA = hdf5[[glue::glue("Batches/{batch}/shift_frompA")]][],
     read_id = hdf5[[glue::glue("Batches/{batch}/read_id")]][]
   )
-  add_index(metainfo)
+  # Add indices for Ref_to_signal and Dacs
+  metainfo[
+      , dacs_end := cumsum(Dacs_lengths)
+    ][
+      , dacs_start := dacs_end - Dacs_lengths + 1
+    ][
+      , ref_to_signal_end := cumsum(Ref_to_signal_lengths)
+    ][
+      , ref_to_signal_start := ref_to_signal_end - Ref_to_signal_lengths + 1
+    ]
 }
 
 #' Read metainfo from signal_mappings.hdf
@@ -162,49 +215,93 @@ get_batches <- function(hdf5){
 #' @param hdf_batch Batch to load signal mappings from
 #' @return Nothing, signal mappings will be added to the metainfo object in memory
 #' @export
-add_signal = function(metainfo, hdf5, hdf_batch) {
-  logger::log_trace("Loading ref to signal")
+add_signal = function(metainfo, dacs_vec, ref_to_sig) {
+  # Input checks
+  assert::assert({
+    required_columns <- c(
+      "ref_to_signal_start",
+      "ref_to_signal_end",
+      "dacs_start",
+      "dacs_end",
+      "read_id",
+      "offset",
+      "range",
+      "digitisation",
+      "shift_frompA",
+      "scale_frompA")
+    all(required_columns %in% names(metainfo))
+    },
+    msg = paste0(
+      "Following required columns are missing: ",
+      paste0(
+        required_columns[!required_columns %in% names(metainfo)],
+        collapse = ", "
+      )
+    )
+  )
+
+  assert::assert({
+    duplicated_read_ids <- which(duplicated(metainfo$read_id))
+    length(duplicated_read_ids) == 0
+    },
+    msg = paste0(
+      "Following rows have duplicate read_ids: ",
+      paste0(
+        duplicated_read_ids,
+        collapse = ", "
+      )
+    )
+  )
+
+
+
   metainfo[
-      , ref_to_signal := read_ref_to_signal(ref_to_signal_start, ref_to_signal_end, hdf5 = hdf5, batch = hdf_batch)
+    # Add ref_to_signal
+      , ref_to_signal := list(
+          list(ref_to_sig[ref_to_signal_start:ref_to_signal_end])
+        ),
+      by = read_id
     ][
-      , `:=`(ref_to_signal_start = NULL, ref_to_signal_end = NULL, Ref_to_signal_lengths = NULL)
-    ]
-  logger::log_trace("Loading dacs")
-  metainfo[
-      , dacs := read_dacs(dacs_start, dacs_end, hdf5 = hdf5, batch = hdf_batch)
+    # Add Dacs
+      , dacs := .(
+          list(dacs_vec[dacs_start:dacs_end])
+        ),
+      by = read_id
     ][
-      , `:=`(dacs_start = NULL, dacs_end = NULL, Dacs_lengths = NULL)
+    # Convert Dacs to current
+      , current := .(
+          list(((unlist(dacs) + offset) * range) / digitisation)
+        ),
+      by = read_id
+    ][
+      , `:=`(
+        dacs = NULL,
+        offset = NULL,
+        range = NULL,
+        digitisation = NULL
+        )
+    ][
+    # Normalise current
+      , current_norm := .(
+          list((unlist(current) - shift_frompA) / scale_frompA)
+        ),
+      by = read_id
+    ][
+      , `:=`(
+        current = NULL,
+        shift_frompA = NULL,
+        scale_frompA = NULL
+        )
+    ][
+    # Index current with respective ref position
+      , current := .(list(add_index_to_vector(unlist(ref_to_signal), unlist(current_norm)))),
+      by = read_id
+    ][
+      , `:=`(ref_to_signal = NULL, current_norm = NULL)
     ]
-  logger::log_trace("Normalising dacs")
-  calculate_current_from_dacs(metainfo)
-  normalise_current(metainfo)
-  logger::log_trace("Batching dacs")
-  metainfo[
-    , current := batch_current_by_reference(ref_to_signal, current_norm)
-  ][
-    , `:=`(ref_to_signal = NULL, current_norm = NULL)
-  ]
-  gc()
-  return("Added signal")
+  return(TRUE)
 }
 
-#' Add read mappings to metainfo
-#' 
-#' Add necessary read mapping information to metainfo
-#' 
-#' @param metainfo data.table of metainfo loaded with read_metainfo
-#' @param read_mapping read mappings
-#' @return Nothing, signal mappings will be added to the metainfo object in memory
-#' @export
-add_mapping <- function(metainfo, read_mapping) {
-  metainfo[
-    read_mapping,
-    on = c('read_id'='qname'),
-    `:=`(chunk = i.chunk, reference = i.rname, type = i.type, pos = i.pos, strand = i.strand)
-  ][
-    , chunk_ref := paste0(chunk, "_", reference)
-  ]
-}
 
 #' Load signal mappings of one batch
 #' 
@@ -219,7 +316,7 @@ get_reference_context <- function(signal) {
       by = .(read_id, type, chunk, reference, pos, strand)
     ][
       ,
-      pos_ref := pos_read + pos - 1
+      pos_ref := ind + pos - 1
     ][
       pos_ref <= (chunk + 1) * chunk_size
     ][
@@ -227,17 +324,6 @@ get_reference_context <- function(signal) {
     ]
 }
 
-add_index = function(signal_mapping) {
-  signal_mapping[
-      , dacs_end := cumsum(Dacs_lengths)
-    ][
-      , dacs_start := dacs_end - Dacs_lengths + 1
-    ][
-      , ref_to_signal_end := cumsum(Ref_to_signal_lengths)
-    ][
-      , ref_to_signal_start := ref_to_signal_end - Ref_to_signal_lengths + 1
-    ]
-}
 
 read_ref_to_signal = function(ref_to_signal_start, ref_to_signal_end, hdf5, batch) {
   ref_to_sig <- hdf5[[glue::glue('/Batches/{batch}/Ref_to_signal')]][]
@@ -247,7 +333,7 @@ read_ref_to_signal = function(ref_to_signal_start, ref_to_signal_end, hdf5, batc
         ref_to_sig[start:end]
       },
       ref_to_signal_start,
-      ref_to_signal_end, 
+      ref_to_signal_end,
       SIMPLIFY = FALSE
     )
   )
@@ -255,68 +341,18 @@ read_ref_to_signal = function(ref_to_signal_start, ref_to_signal_end, hdf5, batc
 
 read_dacs = function(dacs_start, dacs_end, hdf5, batch) {
   dacs <- hdf5[[glue::glue('/Batches/{batch}/Dacs')]][]
+  length_dacs <- length(dacs)
   return(
     mapply(
       function(start, end) {
+        if (length_dacs < max(end)) {
+          print(batch)
+        }
         dacs[start:end]
       },
       dacs_start,
       dacs_end,
       SIMPLIFY = FALSE
     )
-  )
-}
-
-calculate_current_from_dacs = function(signal_mapping) {
-  signal_mapping[, current := mapply(
-    function(dacs, offset, range, digitisation) {
-      ((dacs + offset) * range) / digitisation
-    },
-    dacs,
-    offset,
-    range,
-    digitisation,
-    SIMPLIFY = FALSE
-  )]
-  signal_mapping[, `:=`(
-    dacs = NULL,
-    offset = NULL,
-    range = NULL,
-    digitisation = NULL
-  )]
-}
-
-normalise_current = function(signal_mapping) {
-  signal_mapping[, current_norm := mapply(
-    function(current, shift, scale) {
-      (current - shift) / scale
-    },
-    current,
-    shift_frompA,
-    scale_frompA,
-    SIMPLIFY = FALSE
-  )]
-  signal_mapping[, `:=`(
-    current = NULL,
-    shift_frompA = NULL,
-    scale_frompA = NULL
-  )]
-}
-
-batch_current_by_reference = function(ref_to_signal, current_norm) {
-  current_norm_batch = mapply(
-    function(start, current) {
-      end = data.table::shift(start, type = "lead") %>%
-        na.omit() %>%
-        c() - 1
-      start = start[1:(length(start) - 1)]
-      list(
-        read_pos = rep(1:length(start), end - start + 1),
-        signal = current[min(start):max(end)]
-        )
-    },
-    ref_to_signal,
-    current_norm,
-    SIMPLIFY = FALSE
   )
 }
