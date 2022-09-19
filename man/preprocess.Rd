@@ -11,7 +11,10 @@ preprocess(
   pcr_signal,
   out,
   chunk_size = 10000,
-  threads = 1
+  threads = 1,
+  debug = FALSE,
+  contigs = "all",
+  pvp = FALSE
 )
 }
 \arguments{

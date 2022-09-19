@@ -2,16 +2,16 @@
 % Please edit documentation in R/read_mappings.R
 \name{downsample}
 \alias{downsample}
-\title{Downsample either NAT or PCR to least abundant type}
+\title{Downsample either nat or pcr to least abundant type}
 \usage{
-downsample(read_mapping, min_cov = 20, chunk_size = "attr")
+downsample(read_mapping, chunk_size, min_cov = 20)
 }
 \arguments{
 \item{read_mapping}{Preprocessed signal mappings}
 
-\item{min_cov}{Minimum coverage of type}
-
 \item{chunk_size}{size of chunks}
+
+\item{min_cov}{Minimum coverage of type}
 }
 \value{
 read mapping data.table

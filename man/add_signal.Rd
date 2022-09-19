@@ -4,7 +4,7 @@
 \alias{add_signal}
 \title{Add signal mapping to metainfo}
 \usage{
-add_signal(metainfo, hdf5, hdf_batch)
+add_signal(metainfo, dacs_vec, ref_to_sig)
 }
 \arguments{
 \item{metainfo}{data.table of metainfo loaded with read_metainfo}

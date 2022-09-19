@@ -4,7 +4,7 @@
 \alias{get_overextending_reads}
 \title{Get read mappings that overextent their chunk}
 \usage{
-get_overextending_reads(read_mapping, chunk_size = "attr")
+get_overextending_reads(read_mapping, chunk_size)
 }
 \arguments{
 \item{read_mapping}{Read mapping dt}

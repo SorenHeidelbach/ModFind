@@ -20,6 +20,11 @@ Imports:
     glue,
     ggplot2,
     parallel,
-    rhdf5,
+    hdf5r,
     Rsamtools,
-    magrittr
+    tictoc,
+    magrittr,
+    logger
+Suggests: 
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
