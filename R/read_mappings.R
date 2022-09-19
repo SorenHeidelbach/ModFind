@@ -1,23 +1,3 @@
-#' Loads and prepares read mappings for NAT and PCR
-#' 
-#' This function load metainformation of each read in a batch in a singal mapping hdf5 file.
-#' 
-#' @param nat Path to NAT read mappings
-#' @param pcr Path to PCR read mappings
-#' @param chunk_size Size of chunks to divide contigs into
-#' @return data.table with read mappings
-#' @export
-preprocess_mappings <- function(nat, pcr, chunk_size) {
-  read_mapping <- read_mapping_both(nat, pcr)
-  chunk_mapping(read_mapping, chunk_size)
-  read_mapping <- rbind(
-      read_mapping,
-      get_overextending_reads(read_mapping)
-  )
-  read_mapping <- downsample(read_mapping,  chunk_size = chunk_size)
-  return(read_mapping)
-}
-
 #' Load sorted read mappings
 #'
 #' Load read mapping required for correct assignment of signal mapping reference. 
@@ -43,25 +23,8 @@ load_mapping = function(path_mapping) {
 }
 
 
-#' Chunk mapped reads into regions 
-#'
-#' Divides mapped read into chunks based on position on refernce mapped too.
-#' 
-#'
-#' @param read_mapping read_mapping loaded with 'load_mapping'
-#' @param chunk_size Size of chunks to divide contigs into
-#' @return Nothing, chunks get added to dt in memory
-#' @import data.table
-#' @export
-chunk_mapping <- function(read_mapping, chunk_size = 1e5){
-  read_mapping[
-      , chunk := pos %/% chunk_size
-    ]
-  setattr(read_mapping, "chunk_size", chunk_size)
-}
 
-
-#' Downsample either NAT or PCR to least abundant type
+#' Downsample either nat or pcr to least abundant type
 #'
 #' Removes read of the most bundant mapping type, such there are almost equal mapped bases of each type to each chunk.
 #' 
@@ -72,10 +35,7 @@ chunk_mapping <- function(read_mapping, chunk_size = 1e5){
 #' @return read mapping data.table
 #' @import data.table
 #' @export
-downsample <- function(read_mapping, min_cov = 20, chunk_size = "attr"){
-  if (chunk_size == "attr") {
-    chunk_size <- attr(read_mapping, "chunk_size")
-  }
+downsample <- function(read_mapping, chunk_size, min_cov = 20){
   min_chunk_cov <- min_cov * chunk_size
   read_mapping <- read_mapping[sample(1:nrow(read_mapping))]
   read_mapping[
@@ -91,31 +51,12 @@ downsample <- function(read_mapping, min_cov = 20, chunk_size = "attr"){
     ][
       , max_allowed_chunk_cov := min(max_type_coverage_by_chunk), by = .(chunk, strand)
     ][
-      coverage < max_allowed_chunk_cov | coverage < min_chunk_cov, 
+      coverage < max_allowed_chunk_cov | coverage < min_chunk_cov,
     ][
       , `:=`(max_type_coverage_by_chunk = NULL, max_allowed_chunk_cov = NULL)
     ]
 }
 
-#' Loads both NAT and PCR mappings
-#'
-#' Load both types of mappings at the same time and adds the corect type value. This is required for correct donsampling later. 
-#' 
-#'
-#' @param nat Path to NAT read mappings
-#' @param pcr Path to PCR read mappings
-#' @return read mapping data.table
-#' @import data.table
-#' @export
-read_mapping_both <- function(nat, pcr) {
-  NAT <- load_mapping(nat)
-  NAT[, type := "nat"]
-
-  PCR <- load_mapping(pcr)
-  PCR[, type := "pcr"]
-
-  return(rbind(NAT, PCR))
-}
 
 unnest_dt = function(dt, list_col, keep_col) {
   stopifnot(data.table::is.data.table(dt))
@@ -134,18 +75,18 @@ unnest_dt = function(dt, list_col, keep_col) {
 #' @return read mapping data.table
 #' @import data.table
 #' @export
-get_overextending_reads <- function(read_mapping, chunk_size = "attr"){
-  if (chunk_size == "attr") {
-    chunk_size <- attr(read_mapping, "chunk_size")
-  }
+get_overextending_reads <- function(read_mapping, chunk_size){
   cnames <- colnames(read_mapping)[!(colnames(read_mapping) == "chunk")]
+  max_chunk <- max(read_mapping$chunk)
   corrected_read_mappings <- read_mapping[
       pos + qwidth > (1 + chunk) * chunk_size,
     ][
       , over_extension := pos + qwidth - (1 + chunk) * chunk_size
     ][
-      , .(chunk = list(1:(1 + over_extension %/% chunk_size) + chunk)), 
+      , .(chunk = list(1:(1 + over_extension %/% chunk_size) + chunk)),
       by = mget(cnames)
+    ][
+      chunk <= max_chunk
     ]
   unnest_dt(corrected_read_mappings, "chunk", cnames)
 }
