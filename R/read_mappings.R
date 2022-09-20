@@ -27,7 +27,7 @@ load_mapping = function(path_mapping) {
 #' Downsample either nat or pcr to least abundant type
 #'
 #' Removes read of the most bundant mapping type, such there are almost equal mapped bases of each type to each chunk.
-#' 
+#'
 #'
 #' @param read_mapping Preprocessed signal mappings
 #' @param min_cov Minimum coverage of type

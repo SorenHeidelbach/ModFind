@@ -4,7 +4,7 @@
 \alias{calculate_statistics}
 \title{Calculates statistics between NAT and PCR signal}
 \usage{
-calculate_statistics(signal, window = 8, value_col = "mean_diff", fill_na = 0)
+calculate_statistics(signal, window = 8, value_col = "mean_diff")
 }
 \arguments{
 \item{signal}{Preprocessed signal mappings}

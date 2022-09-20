@@ -40,3 +40,4 @@ test_that("add_signal return same number of rows", {
   n_row_after <- nrow(metainfo_test)
   expect_equal(n_row_before, n_row_after)
 })
+

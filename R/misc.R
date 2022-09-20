@@ -11,10 +11,7 @@ add_index_to_vector  <- function(increment_pos, vec) {
         is.numeric(increment_pos),
         msg = "Ensure increment_pos is numeric"
     )
-    assert::assert(
-        max(increment_pos) <= length(vec),
-        msg = "Increment_pos out of bounds"
-    )
+    
     assert::assert(
         length(increment_pos) >= 2,
         msg = "increment_pos should contain a minimum of 2 values (start, end)"
@@ -24,8 +21,29 @@ add_index_to_vector  <- function(increment_pos, vec) {
     start <- head(increment_pos, -1)
     repeats <- end - start + 1
 
+    assert::assert(
+        max(end) <= length(vec),
+        min(start) >= 1,
+        msg = "Increment_pos out of bounds"
+    )
+    class(repeats)
     list(
       ind = rep(seq_along(start), repeats),
       vec = vec[min(start):max(end)]
     )
+}
+
+
+#' Replace all NA's in data.table with given value
+#' 
+#' 
+#' 
+#' @param DT data.table
+#' @param replacement value to replace with
+#' @return data.table with filled NA's
+#' @export
+replace_na_dt = function(DT, replacement = 0L) {
+  for (i in seq_len(ncol(DT))) {
+    set(DT, which(is.na(DT[[i]])), i, replacement)
+  }
 }

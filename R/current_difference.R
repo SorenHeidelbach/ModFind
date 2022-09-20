@@ -11,8 +11,7 @@
 #' @export
 calculate_statistics <- function(signal,
                                window = 8,
-                               value_col = "mean_diff",
-                               fill_na = 0
+                               value_col = "mean_diff"
                                ) {
     chunk_diff <- signal %>%
       gather_nat_and_pcr() %>%
