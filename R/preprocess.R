@@ -20,18 +20,15 @@ add_signal_chunk <- function(metainfo_chunk, hdf5) {
     lapply(types,
     function(type) {
       logger::log_debug(glue::glue("\t\t{type}"))
-      dacs <- hdf5[[glue::glue('/Batches/{batch}/Dacs')]][]
-      ref_to_signal <-  hdf5[[glue::glue('/Batches/{batch}/Ref_to_signal')]][]
       tryCatch(
         add_signal(
           metainfo_chunk[[batch]][[type]],
-          dacs,
+          hdf5,
+          batch,
           ref_to_signal
         ),
         error = function(e) FALSE
       )
-      rm("dacs", "ref_to_signal")
-      gc()
       return(TRUE)
     } # type
     )
@@ -198,7 +195,7 @@ get_batches <- function(hdf5){
 #' @param hdf_batch Batch to load signal mappings from
 #' @return Nothing, signal mappings will be added to the metainfo object in memory
 #' @export
-add_signal = function(metainfo, dacs_vec, ref_to_sig) {
+add_signal = function(metainfo, hdf5, batch, ref_to_sig) {
   # Input checks
   assert::assert({
     required_columns <- c(
@@ -235,15 +232,15 @@ add_signal = function(metainfo, dacs_vec, ref_to_sig) {
   logger::log_trace(glue::glue("\t\t\tAdding ref to signal"))
   metainfo[
       , ref_to_signal := list(
-          list(ref_to_sig[ref_to_signal_start:ref_to_signal_end] + 1)
-        ),
+              list(hdf5[[glue::glue('/Batches/{batch}/Ref_to_signal')]][ref_to_signal_start:ref_to_signal_end])
+              ),
       by = read_id
     ]
   logger::log_trace(glue::glue("\t\t\tAdding dacs"))
   metainfo[
       , dacs := list(
-          list(dacs_vec[dacs_start:dacs_end])
-        ),
+              list(hdf5[[glue::glue('/Batches/{batch}/Dacs')]][dacs_start:dacs_end])
+              ),
       by = read_id
     ]
   logger::log_trace(glue::glue("\t\t\tDacs to current"))
