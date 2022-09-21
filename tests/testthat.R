@@ -7,6 +7,6 @@
 # * https://testthat.r-lib.org/reference/test_package.html#special-files
 
 library(testthat)
-library(ModFind)
+library(nanomotif)
 
-test_check("ModFind")
+test_check("nanomotif")

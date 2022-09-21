@@ -1,4 +1,4 @@
-# ModFind
+# nanomotif
 
 ## Overview
 
@@ -17,13 +17,38 @@ install.packages("remotes")
 remotes::install_github("SorenHeidelbach/ModFind")
 ```
 
-## Usage
 
-There are three main functionalities:
-- Preprocess; which reformats and gathers mappings of NAT and PCR reads
-- Current difference; which calculate statistics between NAT and PCR reads at each reference position and selects candidate modified positions
-- Identify motifs; which embeds and cluster candidate positions to identify sequence motifs
+## Example usage
 
+```r
+# required inputs
+hdf5_path <- "path/to/megalodon/output/signal_mappings.hdf5"
+ <- "path/to/megalodon/output/mappings.sort.bam"
 
+nat_mapping = "nat/mappings.sort.bam"
+pcr_mapping = "pcr/mappings.sort.bam"
+nat_signal = "nat/signal_mappings.hdf5"
+pcr_signal = "pcr/signal_mappings.hdf5"
+chunk_size = 1e5
 
+# HDF5 list
+h5_list <- list(
+  nat = hdf5r::H5File$new(nat_signal, mode = "r"),
+  pcr = hdf5r::H5File$new(pcr_signal, mode = "r")
+)
 
+# Preprocess
+metainfo <- prepare_metainfo(
+  nat_mapping,
+  pcr_mapping,
+  hdf5 = h5_list,
+  chunk_size = chunk_size
+)
+
+# process the first chunk
+chunk <- process_chunk(
+    metainfo[[1]],
+    h5_list = h5_list,
+    chunk_size = chunk_size
+  )
+```

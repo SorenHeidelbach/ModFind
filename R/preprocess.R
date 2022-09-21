@@ -1,15 +1,11 @@
-#' Run preprocess 
+#' Adds signal to a complete chunk
 #' 
-#' Function to process signal and read mappings into preprocessed .tsv files, ready for current difference calculation
+#' Iterator for adding signal to all bacthes and type (nat and pcr) of a 
+#' chunk of the chunk list outputted by prepare_metainfo
 #' 
-#' @param nat_mapping Path to NAT sorted bam file
-#' @param pcr_mapping Path to PCR sorted bam file
-#' @param nat_signal HDF5 object of NAT signal mappings
-#' @param pcr_signal HDF5 object of PCR signal mappings
-#' @param out Output path for preprocessed signal mappings
-#' @param chunk_size Size to chunk reference into (default 1e4 bases)
-#' @param threads Number of jobs to run parallel (default 1; >1 not supported on windows)
-#' @return metainfo with signal added to each leaf
+#' @param metainfo_chunk a list of batches, with NAt and PCR metainfo
+#' @param hdf5 a list of nat and pcr hdf5 objects
+#' @return logical of success status (signal is loaded in memory)
 #' @export
 add_signal_chunk <- function(metainfo_chunk, hdf5) {
   batches <- names(metainfo_chunk)
@@ -23,9 +19,8 @@ add_signal_chunk <- function(metainfo_chunk, hdf5) {
       tryCatch(
         add_signal(
           metainfo_chunk[[batch]][[type]],
-          hdf5,
-          batch,
-          ref_to_signal
+          hdf5[[type]],
+          batch
         ),
         error = function(e) FALSE
       )
@@ -37,35 +32,29 @@ add_signal_chunk <- function(metainfo_chunk, hdf5) {
 }
 
 
-#' Run preprocess 
+#' Prepare chunks for signal loading
 #' 
-#' Function to process signal and read mappings into preprocessed .tsv files, ready for current difference calculation
+#' Function to process signal and read mappings,
+#' ready for signal loading
 #' 
 #' @param nat_mapping Path to NAT sorted bam file
 #' @param pcr_mapping Path to PCR sorted bam file
-#' @param nat_signal HDF5 object of NAT signal mappings
-#' @param pcr_signal HDF5 object of PCR signal mappings
-#' @param out Output path for preprocessed signal mappings
-#' @param chunk_size Size to chunk reference into (default 1e4 bases)
-#' @param threads Number of jobs to run parallel (default 1; >1 not supported on windows)
-#' @return metainfo list with nesated bacthes and types
+#' @param hdf5 list of nat and pcr hdf5 objects
+#' @param chunk_size Size to chunk reference into (default 1e5)
+#' @param debug logical, print additional information
+#' @param pvp logical, load only PCR and split it into 1:1 labeled PCR and NAT
+#' @return metainfo list with nested bacthes and types
 #' @export
 prepare_metainfo <- function(
                        nat_mapping,
                        pcr_mapping,
-                       nat_signal,
-                       pcr_signal,
+                       hdf5,
                        chunk_size = 1e5,
                        threads = 1,
                        debug = FALSE,
                        pvp = FALSE) {
   
   if (debug) {logger::log_threshold(logger::TRACE)}
-
-  hdf5 <- list(
-    pcr = pcr_signal,
-    nat = nat_signal
-  )
 
   logger::log_debug("Loading read mapping")
   pcr <- load_mapping(pcr_mapping)
@@ -75,6 +64,7 @@ prepare_metainfo <- function(
     read_mapping <- pcr[
         sample(1:.N, .N/2), type := "nat"
       ]
+    hdf5[["nat"]] <- hdf5[["pcr"]]
   } else {
     nat <- load_mapping(nat_mapping)
     nat[, type := "nat"]
@@ -192,10 +182,10 @@ get_batches <- function(hdf5){
 #' 
 #' @param metainfo data.table of metainfo loaded with read_metainfo
 #' @param hdf5 Open hdf5 object
-#' @param hdf_batch Batch to load signal mappings from
+#' @param batch Batch to load signal mappings from
 #' @return Nothing, signal mappings will be added to the metainfo object in memory
 #' @export
-add_signal = function(metainfo, hdf5, batch, ref_to_sig) {
+add_signal = function(metainfo, hdf5, batch) {
   # Input checks
   assert::assert({
     required_columns <- c(
@@ -230,9 +220,10 @@ add_signal = function(metainfo, hdf5, batch, ref_to_sig) {
     )
   )
   logger::log_trace(glue::glue("\t\t\tAdding ref to signal"))
+  # +1 as R, compared to python, indexes from 1
   metainfo[
       , ref_to_signal := list(
-              list(hdf5[[glue::glue('/Batches/{batch}/Ref_to_signal')]][ref_to_signal_start:ref_to_signal_end])
+              list(hdf5[[glue::glue('/Batches/{batch}/Ref_to_signal')]][ref_to_signal_start:ref_to_signal_end] + 1)
               ),
       by = read_id
     ]
@@ -289,9 +280,10 @@ add_signal = function(metainfo, hdf5, batch, ref_to_sig) {
 #' Loads the signal mappings associated with a batch
 #' 
 #' @param signal data.table of metainfo loaded with read_metainfo
-#' @return Nothing, signal mappings will be added to the metainfo object in memory
+#' @param chunk_size integer, size of chunk 
+#' @return data.table
 #' @export
-get_reference_context <- function(signal) {
+get_reference_context <- function(signal, chunk_size) {
   signal[
       , unlist(current_index, recursive = FALSE),
       by = .(read_id, type, chunk, reference, pos, strand)
@@ -302,6 +294,16 @@ get_reference_context <- function(signal) {
       pos_ref <= (chunk + 1) * chunk_size
     ][
       pos_ref >= (chunk) * chunk_size
+    ][
+      , pos_signal := 1:.N,
+      by = .(pos_ref, strand, type, read_id)
+    ][
+      strand == "-",
+      pos_ref := invert_range(pos_ref),
+      by = read_id
+    ][
+      strand == "-",
+      pos_signal := invert_range(pos_signal),
+      by = .(read_id, pos_ref)
     ]
 }
-

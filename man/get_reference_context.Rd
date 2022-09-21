@@ -4,13 +4,15 @@
 \alias{get_reference_context}
 \title{Load signal mappings of one batch}
 \usage{
-get_reference_context(signal)
+get_reference_context(signal, chunk_size)
 }
 \arguments{
 \item{signal}{data.table of metainfo loaded with read_metainfo}
+
+\item{chunk_size}{integer, size of chunk}
 }
 \value{
-Nothing, signal mappings will be added to the metainfo object in memory
+data.table
 }
 \description{
 Loads the signal mappings associated with a batch

@@ -1,11 +1,10 @@
 #' Calculates statistics between NAT and PCR signal
 #'
-#' Complete processing from difference calculation to event selection
+#' Calculates statistics between NAT and PCR signal
 #'
 #' @param signal Preprocessed signal mappings
 #' @param window Number of position to in frame include at each side of event
 #' @param value_col Statistic to include in event frame
-#' @param fill_na Value to fill NA values with
 #' @return current difference data.table
 #' @import data.table
 #' @export
@@ -26,20 +25,45 @@ calculate_statistics <- function(signal,
     return(chunk_diff)
   }
 
-#' Calculates current difference from preprocess output
+#' Extract features from event statistics
 #'
-#' Complete processing from difference calculation to event selection
+#' Selects events based on p-value and extract feature from signal dt 
+#' with calculated statistics, which is then ready for embedding and clustering
 #'
 #' @param signal Preprocessed signal mappings
 #' @param p_value_threshold Threshold for event selection (based on two sided wilcox test)
-#' @return current difference data.table
-#' @import data.table
+#' @return data.table with feature columns and reference position
 #' @export
 get_event_features <- function(signal, p_value_threshold = 1e-10) {
   events <- signal %>%
     identify_events(p_value_threshold) %>%
     gather_plus_and_minus_strand()
     return(events)
+}
+
+#' Process chunk
+#'
+#' Loads signal and calculates current difference
+#'
+#' @param chunk_list list of batches with nat and pcr metainfo
+#' @param h5_list list of nat and pcr h5 objects
+#' @param chunk_size size of chunks
+#' @param plot_path path to output generated plot
+#' @return dt with calculated statistics
+#' @import data.table
+#' @export
+process_chunk <- function(chunk_list, h5_list, chunk_size, plot_path = paste0("./current_plots/", unique(metainfo[[2]][[1]][[1]]$chunk_ref), "/")) {
+  add_signal_chunk(chunk_list, h5_list)
+  chunk <- rbindlist(unlist(chunk_list, recursive = FALSE))
+  chunk <- get_reference_context(chunk, chunk_size)
+  data.table::setnames(chunk, "vec", "signal")
+
+  ## signal viz
+  plot_chunk_current(chunk, plot_path)
+
+  ## difference
+  chunk_stats <- calculate_statistics(chunk)
+  return(chunk_stats)
 }
 
 gather_nat_and_pcr <- function(chunk){

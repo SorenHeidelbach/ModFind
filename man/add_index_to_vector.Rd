@@ -7,7 +7,7 @@
 add_index_to_vector(increment_pos, vec)
 }
 \arguments{
-\item{increment_pos}{Positions where index increment by one, the range of the returned vectors is min:max of this vector}
+\item{increment_pos}{Vector of positions of index increment}
 
 \item{vec}{Vector to add indices too}
 }
@@ -15,5 +15,5 @@ add_index_to_vector(increment_pos, vec)
 data.table with read mappings
 }
 \description{
-Return list with vector and indices
+Calculates index of one vector based on increment vector and returns list with both
 }

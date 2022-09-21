@@ -2,7 +2,7 @@
 % Please edit documentation in R/current_difference.R
 \name{get_event_features}
 \alias{get_event_features}
-\title{Calculates current difference from preprocess output}
+\title{Extract features from event statistics}
 \usage{
 get_event_features(signal, p_value_threshold = 1e-10)
 }
@@ -12,8 +12,9 @@ get_event_features(signal, p_value_threshold = 1e-10)
 \item{p_value_threshold}{Threshold for event selection (based on two sided wilcox test)}
 }
 \value{
-current difference data.table
+data.table with feature columns and reference position
 }
 \description{
-Complete processing from difference calculation to event selection
+Selects events based on p-value and extract feature from signal dt
+with calculated statistics, which is then ready for embedding and clustering
 }

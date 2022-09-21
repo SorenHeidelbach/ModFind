@@ -1,8 +1,8 @@
 #' Return list with vector and indices
 #' 
+#' Calculates index of one vector based on increment vector and returns list with both
 #' 
-#' 
-#' @param increment_pos Positions where index increment by one, the range of the returned vectors is min:max of this vector
+#' @param increment_pos Vector of positions of index increment
 #' @param vec Vector to add indices too
 #' @return data.table with read mappings
 #' @export
@@ -26,7 +26,6 @@ add_index_to_vector  <- function(increment_pos, vec) {
         min(start) >= 1,
         msg = "Increment_pos out of bounds"
     )
-    class(repeats)
     list(
       ind = rep(seq_along(start), repeats),
       vec = vec[min(start):max(end)]
@@ -34,9 +33,9 @@ add_index_to_vector  <- function(increment_pos, vec) {
 }
 
 
-#' Replace all NA's in data.table with given value
+#' Replace all NA's in DT
 #' 
-#' 
+#' Replaces all the NA's in all columns in data.table with the specified value 
 #' 
 #' @param DT data.table
 #' @param replacement value to replace with
@@ -46,4 +45,8 @@ replace_na_dt = function(DT, replacement = 0L) {
   for (i in seq_len(ncol(DT))) {
     set(DT, which(is.na(DT[[i]])), i, replacement)
   }
+}
+
+invert_range <- function(vec) {
+  2*(median(range(vec))) - vec
 }

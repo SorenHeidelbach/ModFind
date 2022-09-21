@@ -1,5 +1,5 @@
-Package: ModFind
-Title: Identify Modified Motifs
+Package: nanomotif
+Title: Identify Modified Motifs using Nanopore
 Version: 0.0.0.9000
 Authors@R: 
     person("First", "Last", , "first.last@example.com", role = c("aut", "cre"),
@@ -13,19 +13,14 @@ biocViews:
 Imports:
     data.table,
     assert,
-    seqinr,
     stringr,
-    dplyr,
     R.utils,
     glue,
     ggplot2,
-    parallel,
     hdf5r,
     Rsamtools,
-    tictoc,
     magrittr,
-    logger,
-    umap
+    logger
 Suggests: 
     testthat (>= 3.0.0)
 Config/testthat/edition: 3

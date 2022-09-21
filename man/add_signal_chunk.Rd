@@ -2,28 +2,19 @@
 % Please edit documentation in R/preprocess.R
 \name{add_signal_chunk}
 \alias{add_signal_chunk}
-\title{Run preprocess}
+\title{Adds signal to a complete chunk}
 \usage{
 add_signal_chunk(metainfo_chunk, hdf5)
 }
 \arguments{
-\item{nat_mapping}{Path to NAT sorted bam file}
+\item{metainfo_chunk}{a list of batches, with NAt and PCR metainfo}
 
-\item{pcr_mapping}{Path to PCR sorted bam file}
-
-\item{nat_signal}{HDF5 object of NAT signal mappings}
-
-\item{pcr_signal}{HDF5 object of PCR signal mappings}
-
-\item{out}{Output path for preprocessed signal mappings}
-
-\item{chunk_size}{Size to chunk reference into (default 1e4 bases)}
-
-\item{threads}{Number of jobs to run parallel (default 1; >1 not supported on windows)}
+\item{hdf5}{a list of nat and pcr hdf5 objects}
 }
 \value{
-metainfo with signal added to each leaf
+logical of success status (signal is loaded in memory)
 }
 \description{
-Function to process signal and read mappings into preprocessed .tsv files, ready for current difference calculation
+Iterator for adding signal to all bacthes and type (nat and pcr) of a
+chunk of the chunk list outputted by prepare_metainfo
 }

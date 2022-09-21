@@ -2,13 +2,12 @@
 % Please edit documentation in R/preprocess.R
 \name{prepare_metainfo}
 \alias{prepare_metainfo}
-\title{Run preprocess}
+\title{Prepare chunks for signal loading}
 \usage{
 prepare_metainfo(
   nat_mapping,
   pcr_mapping,
-  nat_signal,
-  pcr_signal,
+  hdf5,
   chunk_size = 1e+05,
   threads = 1,
   debug = FALSE,
@@ -20,19 +19,18 @@ prepare_metainfo(
 
 \item{pcr_mapping}{Path to PCR sorted bam file}
 
-\item{nat_signal}{HDF5 object of NAT signal mappings}
+\item{hdf5}{list of nat and pcr hdf5 objects}
 
-\item{pcr_signal}{HDF5 object of PCR signal mappings}
+\item{chunk_size}{Size to chunk reference into (default 1e5)}
 
-\item{chunk_size}{Size to chunk reference into (default 1e4 bases)}
+\item{debug}{logical, print additional information}
 
-\item{threads}{Number of jobs to run parallel (default 1; >1 not supported on windows)}
-
-\item{out}{Output path for preprocessed signal mappings}
+\item{pvp}{logical, load only PCR and split it into 1:1 labeled PCR and NAT}
 }
 \value{
-metainfo list with nesated bacthes and types
+metainfo list with nested bacthes and types
 }
 \description{
-Function to process signal and read mappings into preprocessed .tsv files, ready for current difference calculation
+Function to process signal and read mappings,
+ready for signal loading
 }

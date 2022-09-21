@@ -2,7 +2,7 @@
 % Please edit documentation in R/misc.R
 \name{replace_na_dt}
 \alias{replace_na_dt}
-\title{Replace all NA's in data.table with given value}
+\title{Replace all NA's in DT}
 \usage{
 replace_na_dt(DT, replacement = 0L)
 }
@@ -15,5 +15,5 @@ replace_na_dt(DT, replacement = 0L)
 data.table with filled NA's
 }
 \description{
-Replace all NA's in data.table with given value
+Replaces all the NA's in all columns in data.table with the specified value
 }

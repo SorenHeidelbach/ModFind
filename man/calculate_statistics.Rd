@@ -12,12 +12,10 @@ calculate_statistics(signal, window = 8, value_col = "mean_diff")
 \item{window}{Number of position to in frame include at each side of event}
 
 \item{value_col}{Statistic to include in event frame}
-
-\item{fill_na}{Value to fill NA values with}
 }
 \value{
 current difference data.table
 }
 \description{
-Complete processing from difference calculation to event selection
+Calculates statistics between NAT and PCR signal
 }

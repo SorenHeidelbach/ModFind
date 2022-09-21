@@ -30,8 +30,8 @@ load_mapping = function(path_mapping) {
 #'
 #'
 #' @param read_mapping Preprocessed signal mappings
-#' @param min_cov Minimum coverage of type
 #' @param chunk_size size of chunks
+#' @param min_cov Minimum coverage of type
 #' @return read mapping data.table
 #' @import data.table
 #' @export
@@ -75,7 +75,7 @@ unnest_dt = function(dt, list_col, keep_col) {
 #' @return read mapping data.table
 #' @import data.table
 #' @export
-get_overextending_reads <- function(read_mapping, chunk_size){
+get_overextending_reads <- function(read_mapping, chunk_size) {
   cnames <- colnames(read_mapping)[!(colnames(read_mapping) == "chunk")]
   max_chunk <- max(read_mapping$chunk)
   corrected_read_mappings <- read_mapping[
