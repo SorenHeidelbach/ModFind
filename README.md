@@ -22,9 +22,6 @@ remotes::install_github("SorenHeidelbach/ModFind")
 
 ```r
 # required inputs
-hdf5_path <- "path/to/megalodon/output/signal_mappings.hdf5"
- <- "path/to/megalodon/output/mappings.sort.bam"
-
 nat_mapping = "nat/mappings.sort.bam"
 pcr_mapping = "pcr/mappings.sort.bam"
 nat_signal = "nat/signal_mappings.hdf5"
