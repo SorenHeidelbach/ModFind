@@ -263,12 +263,12 @@ add_signal = function(metainfo, hdf5, batch) {
     ]
   logger::log_trace(glue::glue("\t\t\tAdding reference position to signal"))
   metainfo[
-      , current_index := list(
+      , signal := list(
           list(add_index_to_vector(unlist(ref_to_signal), unlist(current_norm)))
         ),
       by = read_id
     ][
-      , `:=`(ref_to_signal = NULL, current_norm = NULL)
+      , `:=`(current_norm = NULL)
     ]
 
     return(NULL)
@@ -283,27 +283,21 @@ add_signal = function(metainfo, hdf5, batch) {
 #' @param chunk_size integer, size of chunk 
 #' @return data.table
 #' @export
-get_reference_context <- function(signal, chunk_size) {
-  signal[
-      , unlist(current_index, recursive = FALSE),
-      by = .(read_id, type, chunk, reference, pos, strand)
+get_reference_context <- function(signal_dt, chunk_size) {
+  signal_unlisted <- signal_dt[
+      , list(unlist(signal, recursive = FALSE)), by = .(read_id, type, chunk, reference, pos, strand)
+    ]
+    setnames(signal_unlisted, "V1", "signal")
+    signal_unlisted[
+      strand == "+", pos_read := 1:.N, by = .(read_id, chunk)
+    ][
+      strand == "-", pos_read := .N:1, by = .(read_id, chunk)
     ][
       ,
-      pos_ref := ind + pos - 1
+      pos_ref := pos + pos_read - 1
     ][
       pos_ref <= (chunk + 1) * chunk_size
     ][
       pos_ref >= (chunk) * chunk_size
-    ][
-      , pos_signal := 1:.N,
-      by = .(pos_ref, strand, type, read_id)
-    ][
-      strand == "-",
-      pos_ref := invert_range(pos_ref),
-      by = read_id
-    ][
-      strand == "-",
-      pos_signal := invert_range(pos_signal),
-      by = .(read_id, pos_ref)
     ]
 }

@@ -35,10 +35,11 @@ calculate_statistics <- function(signal,
 #' @return data.table with feature columns and reference position
 #' @export
 get_event_features <- function(signal, p_value_threshold = 1e-10) {
-  events <- signal %>%
-    identify_events(p_value_threshold) %>%
-    gather_plus_and_minus_strand()
-    return(events)
+  signal[
+    , event := min(p_val) < p_value_threshold, by = .(pos_ref)
+    ]
+  events <- gather_plus_and_minus_strand(signal)
+  return(events)
 }
 
 #' Process chunk
@@ -56,7 +57,6 @@ process_chunk <- function(chunk_list, h5_list, chunk_size, plot_path = paste0(".
   add_signal_chunk(chunk_list, h5_list)
   chunk <- rbindlist(unlist(chunk_list, recursive = FALSE))
   chunk <- get_reference_context(chunk, chunk_size)
-  data.table::setnames(chunk, "vec", "signal")
 
   ## signal viz
   plot_chunk_current(chunk, plot_path)
@@ -70,19 +70,13 @@ gather_nat_and_pcr <- function(chunk){
   dcast(
     chunk,
     strand + pos_ref ~ type,
-    value.var = "signal", fun.agg = function(x) list(x)
+    value.var = "signal", fun.agg = function(x) list(unlist(x))
   )
 }
 
 remove_when_signal_missing <- function(chunk){
   chunk[
     (lengths(nat) > 0) & (lengths(pcr) > 0)
-  ]
-}
-
-identify_events <- function(chunk, p_value_threshold) {
-  chunk[
-    , event := min(p_val) < p_value_threshold, by = .(pos_ref)
   ]
 }
 
@@ -138,12 +132,12 @@ gather_plus_and_minus_strand <- function(chunk) {
     chunk[
         event == TRUE & strand == "-",
       ][
-        , .SD, .SDcols = names(chunk) %like% "dif_|pos_ref"
+        , .SD, .SDcols = names(chunk) %like% "diff_|pos_ref"
       ],
     chunk[
         event == TRUE & strand == "+",
       ][
-        , .SD, .SDcols = names(chunk) %like% "dif_|pos_ref"
+        , .SD, .SDcols = names(chunk) %like% "diff_|pos_ref"
       ],
     by = "pos_ref",
     suffixes = c("_minus", "_plus")

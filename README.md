@@ -14,7 +14,7 @@ File inputs are
 
 ```r
 install.packages("remotes")
-remotes::install_github("SorenHeidelbach/ModFind")
+remotes::install_github("SorenHeidelbach/nanomotif")
 ```
 
 

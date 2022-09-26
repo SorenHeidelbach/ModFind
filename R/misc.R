@@ -19,16 +19,18 @@ add_index_to_vector  <- function(increment_pos, vec) {
 
     end <- increment_pos[-1] - 1
     start <- head(increment_pos, -1)
-    repeats <- end - start + 1
 
     assert::assert(
         max(end) <= length(vec),
         min(start) >= 1,
         msg = "Increment_pos out of bounds"
     )
-    list(
-      ind = rep(seq_along(start), repeats),
-      vec = vec[min(start):max(end)]
+    mapply(
+      function(start, end) {
+        vec[start:end]
+      },
+      start,
+      end
     )
 }
 

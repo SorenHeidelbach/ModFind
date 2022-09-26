@@ -1,4 +1,20 @@
 
+get_chunk_zoom <- function(chunk, start_pos, frame = 10) {
+  chunk_zoom <- chunk[
+    (pos_ref > start_pos) & (pos_ref < (start_pos + frame)),
+  ][
+    , unlist(signal), .(read_id, pos, strand, pos_ref, type)
+  ]
+  setnames(chunk_zoom, "V1", "signal")
+  chunk_zoom[
+    , mean_current := mean(signal), by = .(type, pos_ref, strand)
+  ][
+    , strand := fifelse(strand == "+", "Plus strand", "Minus strand")
+  ][
+    , pos_signal := 1:.N, by = .(type, pos_ref, strand)
+  ]
+}
+
 range_01 <- function(vec) {
   return((vec - min(vec))/max(vec - min(vec)))
 }
@@ -11,16 +27,6 @@ add_rel_pos_current_pos <- function(chunk) {
         4),
       by = .(read_id, pos_ref, strand, type)
     ]
-}
-
-get_chunk_zoom <- function(chunk, start_pos, frame = 10) {
-  chunk[
-    (pos_ref > start_pos) & (pos_ref < (start_pos + frame)),
-  ][
-    , mean_current := mean(signal), by = .(type, pos_ref, strand)
-  ][
-    , strand := fifelse(strand == "+", "Plus strand", "Minus strand")
-  ]
 }
 
 get_n_reads_in_zoom <- function(chunk_zoom) {
