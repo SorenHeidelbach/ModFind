@@ -1,3 +1,27 @@
+preprocess_all_chunks <- function(metainfo,
+                                  h5_list,
+                                  out,
+                                  chunk_size = 1e5,
+                                  ...) {
+  lapply(
+    seq_along(metainfo),
+    function(i) {
+      logger::log_debug((names(metainfo[i])))
+      chunk <- process_chunk(
+          metainfo[[i]],
+          h5_list = h5_list,
+          chunk_size = chunk_size
+        )
+
+      chunk[, chunk_ref := names(metainfo[i])]
+
+      chunk_out_path <- paste0(out, names(metainfo)[i], "/")
+      dir.create(chunk_out_path)
+      fwrite(chunk, paste0(chunk_out_path, "chunk.tsv"))
+    }
+  )
+}
+
 #' Calculates statistics between NAT and PCR signal
 #'
 #' Calculates statistics between NAT and PCR signal
@@ -36,8 +60,9 @@ calculate_statistics <- function(signal,
 #' @export
 get_event_features <- function(signal, p_value_threshold = 1e-10) {
   signal[
-    , event := min(p_val) < p_value_threshold, by = .(pos_ref)
+    , event := min(p_val) < p_value_threshold, by = .(pos_ref, chunk_ref)
     ]
+  
   events <- gather_plus_and_minus_strand(signal)
   return(events)
 }
@@ -53,15 +78,22 @@ get_event_features <- function(signal, p_value_threshold = 1e-10) {
 #' @return dt with calculated statistics
 #' @import data.table
 #' @export
-process_chunk <- function(chunk_list, h5_list, chunk_size, plot_path = paste0("./current_plots/", unique(metainfo[[2]][[1]][[1]]$chunk_ref), "/")) {
+process_chunk <- function(chunk_list, 
+                          h5_list, 
+                          chunk_size, 
+                          plot_path = paste0("./current_plots/", unique(chunk_list[[1]][[1]]$chunk_ref), "/")) {
+  
   add_signal_chunk(chunk_list, h5_list)
+  logger::log_debug("Reformating chunk dt")
   chunk <- rbindlist(unlist(chunk_list, recursive = FALSE))
   chunk <- get_reference_context(chunk, chunk_size)
 
   ## signal viz
+  logger::log_debug("Plotting signal subset")
   plot_chunk_current(chunk, plot_path)
 
   ## difference
+  logger::log_debug("Calculaitng statistics")
   chunk_stats <- calculate_statistics(chunk)
   return(chunk_stats)
 }
@@ -132,14 +164,15 @@ gather_plus_and_minus_strand <- function(chunk) {
     chunk[
         event == TRUE & strand == "-",
       ][
-        , .SD, .SDcols = names(chunk) %like% "diff_|pos_ref"
+        , .SD, .SDcols = names(chunk) %like% "diff_|pos_ref|chunk_ref"
       ],
     chunk[
         event == TRUE & strand == "+",
       ][
-        , .SD, .SDcols = names(chunk) %like% "diff_|pos_ref"
+        , .SD, .SDcols = names(chunk) %like% "diff_|pos_ref|chunk_ref"
       ],
-    by = "pos_ref",
+    by = c("pos_ref", "chunk_ref"),
+    all = TRUE,
     suffixes = c("_minus", "_plus")
   )
   return(chunk_merged)

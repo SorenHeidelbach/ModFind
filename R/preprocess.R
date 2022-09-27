@@ -87,11 +87,13 @@ prepare_metainfo <- function(
   metainfo <- rbind(
     metainfo_nat[
       read_mapping[type == "nat"],
-      on = c('read_id'='qname')
+      on = c('read_id'='qname'),
+      nomatch = NULL
     ],
     metainfo_pcr[
       read_mapping[type == "pcr"],
-      on = c('read_id'='qname')
+      on = c('read_id'='qname'),
+      nomatch = NULL
     ]
   )
   data.table::setnames(metainfo, c("rname"), c("reference"))
@@ -300,4 +302,5 @@ get_reference_context <- function(signal_dt, chunk_size) {
     ][
       pos_ref >= (chunk) * chunk_size
     ]
+  return(signal_unlisted)
 }

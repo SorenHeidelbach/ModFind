@@ -47,13 +47,13 @@ downsample <- function(read_mapping, chunk_size, min_cov = 20){
     ][
       , coverage := cumsum(as.numeric(read_chunk_cov)), by = .(type, chunk, strand)
     ][
-      , max_type_coverage_by_chunk := max(coverage), by = .(type, chunk, strand)
+      , max_coverage := max(coverage), by = .(type, chunk, strand)
     ][
-      , max_allowed_chunk_cov := min(max_type_coverage_by_chunk), by = .(chunk, strand)
+      , max_allowed := min(max_coverage), by = .(chunk, strand)
     ][
-      coverage < max_allowed_chunk_cov | coverage < min_chunk_cov,
+      (coverage < max_allowed) | (coverage < min_chunk_cov),
     ][
-      , `:=`(max_type_coverage_by_chunk = NULL, max_allowed_chunk_cov = NULL)
+      , `:=`(max_coverage = NULL, max_allowed = NULL)
     ]
 }
 
