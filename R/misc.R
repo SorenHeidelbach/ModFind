@@ -52,3 +52,52 @@ replace_na_dt = function(DT, replacement = 0L) {
 invert_range <- function(vec) {
   2*(median(range(vec))) - vec
 }
+
+
+#' Paste string to path
+#' 
+#' Ensures that leading or trailing / are correctly handled
+#' 
+#' @param ... Strings to be concatenated
+#' @return Character
+#' @export
+paste_path <- function(...) {
+  x <- list(...)
+
+  # Check inputs
+  position_of_vector <- lengths(x) > 1
+  vec <- x[position_of_vector]
+  checkmate::assert_true(sum(position_of_vector) <= 1)
+  
+  # Repeat non multi character inputs
+  x <- lapply(
+    x[!position_of_vector],
+    function(chr) rep(chr[1], max(lengths(x)))
+  )
+  x[!position_of_vector] <- x
+  x[position_of_vector] <- vec
+  x <- transpose(x)
+
+  # Paste the strings
+  x <- lapply(
+    x,
+    function(paths) {
+    paths <- unlist(paths)
+    path  <- ""
+    for (i in seq_along(paths)) {
+      path <- stringr::str_remove(path, "\\/$")
+      string <- stringr::str_remove(paths[i], "^\\/")
+      if (i > 1) {
+        path <- paste(path, string, sep = "/")
+      } else {
+        path <- paste0(path, string)
+      }
+    }
+    return(path)
+  }
+  )
+  if (sum(position_of_vector) == 0) {
+    x <- unlist(x)
+  }
+  return(x)
+}
