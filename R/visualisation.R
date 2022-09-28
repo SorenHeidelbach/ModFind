@@ -196,21 +196,21 @@ default_theme_SH = function(){
       panel.background = element_blank(),
       panel.border = element_blank(),
       # grid lines
-      panel.grid.major.x = element_line(size = 0.5, color = "#cbcbcb00"),
-      panel.grid.major.y = element_line(size = 0.5, color = "#cbcbcb"),
+      panel.grid.major.x = element_line(size = 0.5, color = "#cbcbcb70"),
+      panel.grid.major.y = element_line(size = 0.5, color = "#cbcbcb70"),
       panel.grid.minor = element_blank(),
       # axis ticks and lines
       axis.ticks = element_blank(),
       axis.line = element_blank(),
       # title, subtitle and caption
-      plot.title = element_text(size = 25, face = "bold", colour = "#757575",
+      plot.title = element_text(size = 20, colour = "#757575",
                                 hjust = 0, margin = margin(9, 20, 9, 0)),
-      plot.subtitle = element_text(size = 24, colour = "#757575", hjust = 0,
+      plot.subtitle = element_text(size = 20, colour = "#757575", hjust = 0,
                                    margin = margin(9, 0, 18, 9)),
       plot.caption = element_text(size = 15, color = "grey50", hjust = 1,
                                   margin = margin(t = 15)),
       # axes titles
-      axis.title = element_text(size = 15, colour = "#757575", hjust = 1),
+      axis.title = element_text(size = 15, colour = "#757575", hjust = 0.5),
       axis.text.x = element_text(size = 10, margin = margin(b = 14)),
       axis.text.y = element_text(size = 10, margin = margin(l = 14)),
       # legend
@@ -221,8 +221,8 @@ default_theme_SH = function(){
       legend.text = element_text(size = 14, colour = "#757575"),
       # facetting
       strip.background = element_rect(fill = "transparent", colour = NA),
-      strip.text = element_text(size = 12, face = "bold", colour = "#757575",
-                                hjust = 0)
+      strip.text = element_text(size = 12, colour = "#757575",
+                                hjust = 0.5)
     )
 }
 
