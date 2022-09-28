@@ -8,7 +8,7 @@ process_chunk(
   chunk_list,
   h5_list,
   chunk_size,
-  plot_path = paste0("./current_plots/", unique(metainfo[[2]][[1]][[1]]$chunk_ref), "/")
+  plot_path = paste0("./current_plots/", unique(chunk_list[[1]][[1]]$chunk_ref), "/")
 )
 }
 \arguments{

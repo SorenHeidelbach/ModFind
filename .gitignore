@@ -1,3 +1,5 @@
 .Rproj.user
 .R*
 data
+current_plots
+test

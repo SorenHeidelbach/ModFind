@@ -4,12 +4,12 @@
 \alias{get_reference_context}
 \title{Load signal mappings of one batch}
 \usage{
-get_reference_context(signal, chunk_size)
+get_reference_context(signal_dt, chunk_size)
 }
 \arguments{
-\item{signal}{data.table of metainfo loaded with read_metainfo}
-
 \item{chunk_size}{integer, size of chunk}
+
+\item{signal}{data.table of metainfo loaded with read_metainfo}
 }
 \value{
 data.table
