@@ -15,9 +15,9 @@ preprocess_all_chunks <- function(metainfo,
 
       chunk[, chunk_ref := names(metainfo[i])]
 
-      chunk_out_path <- paste0(out, names(metainfo)[i], "/")
-      dir.create(chunk_out_path)
-      fwrite(chunk, paste0(chunk_out_path, "chunk.tsv"))
+      chunk_out_path <- paste_path(out, "/chunks/", names(metainfo)[i])
+      dir.create(chunk_out_path, recursive = TRUE)
+      fwrite(chunk, paste_path(chunk_out_path, "chunk.tsv"))
     }
   )
 }
