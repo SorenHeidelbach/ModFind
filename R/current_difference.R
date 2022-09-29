@@ -1,3 +1,16 @@
+
+#' Processes all chunks in metainfo list
+#'
+#' Loads signal and calculates current difference
+#'
+#' @param chunks_list list of batches with nat and pcr metainfo
+#' @param h5_list list of nat and pcr h5 objects
+#' @param out output folder of preprocessed chunks
+#' @param chunk_size size of chunks
+#' @param plot_path path to output generated plot
+#' @return dt with calculated statistics
+#' @import data.table
+#' @export
 preprocess_all_chunks <- function(metainfo,
                                   h5_list,
                                   out,
