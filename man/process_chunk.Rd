@@ -6,7 +6,8 @@
 \usage{
 process_chunk(
   chunk_list,
-  h5_list,
+  nat_hdf5,
+  pcr_hdf5,
   chunk_size,
   plot_path = paste0("./current_plots/", unique(chunk_list[[1]][[1]]$chunk_ref), "/")
 )
@@ -14,11 +15,11 @@ process_chunk(
 \arguments{
 \item{chunk_list}{list of batches with nat and pcr metainfo}
 
-\item{h5_list}{list of nat and pcr h5 objects}
-
 \item{chunk_size}{size of chunks}
 
 \item{plot_path}{path to output generated plot}
+
+\item{h5_list}{list of nat and pcr h5 objects}
 }
 \value{
 dt with calculated statistics

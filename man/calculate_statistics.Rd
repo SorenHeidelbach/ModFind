@@ -4,14 +4,14 @@
 \alias{calculate_statistics}
 \title{Calculates statistics between NAT and PCR signal}
 \usage{
-calculate_statistics(signal, window = 8, value_col = "mean_diff")
+calculate_statistics(signal, frame_size = 8, value_col = "mean_diff")
 }
 \arguments{
 \item{signal}{Preprocessed signal mappings}
 
-\item{window}{Number of position to in frame include at each side of event}
-
 \item{value_col}{Statistic to include in event frame}
+
+\item{window}{Number of position to in frame include at each side of event}
 }
 \value{
 current difference data.table

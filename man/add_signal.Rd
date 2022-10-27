@@ -4,12 +4,12 @@
 \alias{add_signal}
 \title{Add signal mapping to metainfo}
 \usage{
-add_signal(metainfo, hdf5, batch)
+add_signal(metainfo, hdf5_obj, batch)
 }
 \arguments{
 \item{metainfo}{data.table of metainfo loaded with read_metainfo}
 
-\item{hdf5}{Open hdf5 object}
+\item{hdf5_obj}{Open hdf5 object}
 
 \item{batch}{Batch to load signal mappings from}
 }

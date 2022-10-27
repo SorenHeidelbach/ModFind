@@ -4,16 +4,16 @@
 \alias{preprocess_all_chunks}
 \title{Processes all chunks in metainfo list}
 \usage{
-preprocess_all_chunks(metainfo, h5_list, out, chunk_size = 1e+05, ...)
+preprocess_all_chunks(metainfo, nat_hdf5, pcr_hdf5, out, chunk_size = 1e+05)
 }
 \arguments{
-\item{h5_list}{list of nat and pcr h5 objects}
-
 \item{out}{output folder of preprocessed chunks}
 
 \item{chunk_size}{size of chunks}
 
 \item{chunks_list}{list of batches with nat and pcr metainfo}
+
+\item{h5_list}{list of nat and pcr h5 objects}
 
 \item{plot_path}{path to output generated plot}
 }

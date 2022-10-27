@@ -7,7 +7,8 @@
 prepare_metainfo(
   nat_mapping,
   pcr_mapping,
-  hdf5,
+  nat_hdf5,
+  pcr_hdf5,
   chunk_size = 1e+05,
   threads = 1,
   debug = FALSE,
@@ -19,13 +20,13 @@ prepare_metainfo(
 
 \item{pcr_mapping}{Path to PCR sorted bam file}
 
-\item{hdf5}{list of nat and pcr hdf5 objects}
-
 \item{chunk_size}{Size to chunk reference into (default 1e5)}
 
 \item{debug}{logical, print additional information}
 
 \item{pvp}{logical, load only PCR and split it into 1:1 labeled PCR and NAT}
+
+\item{hdf5}{list of nat and pcr hdf5 objects}
 }
 \value{
 metainfo list with nested bacthes and types

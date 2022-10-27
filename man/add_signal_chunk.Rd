@@ -4,7 +4,7 @@
 \alias{add_signal_chunk}
 \title{Adds signal to a complete chunk}
 \usage{
-add_signal_chunk(metainfo_chunk, hdf5)
+add_signal_chunk(metainfo_chunk, hdf5_list)
 }
 \arguments{
 \item{metainfo_chunk}{a list of batches, with NAt and PCR metainfo}

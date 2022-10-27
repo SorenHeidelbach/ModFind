@@ -4,7 +4,7 @@
 \alias{get_event_features}
 \title{Extract features from event statistics}
 \usage{
-get_event_features(signal, p_value_threshold = 1e-10)
+get_event_features(signal, p_value_threshold = 1e-06)
 }
 \arguments{
 \item{signal}{Preprocessed signal mappings}
