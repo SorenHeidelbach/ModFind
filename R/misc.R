@@ -101,3 +101,22 @@ paste_path <- function(...) {
   }
   return(x)
 }
+
+# Transfer attributes from one dt to another
+transfer_attributes <- function(dt_from, dt_to, override = FALSE){
+  if (!override) {
+    old_attr <- attributes(dt_to) %>% 
+      names()
+  } else {
+    old_attr <- data.table() %>% 
+      attributes() %>% 
+      names()
+  }
+  
+  new_attr <- attributes(dt_from) %>% 
+    `[`(!names(.) %in% old_attr)
+  
+  invisible(
+    lapply(names(new_attr), function(x) setattr(dt_to, x, new_attr[[x]]))
+  )
+}
