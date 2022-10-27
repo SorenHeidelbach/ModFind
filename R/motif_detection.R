@@ -34,7 +34,7 @@ embed_and_cluster <- function(
   )
 
   features_metainfo <- features[
-    , .SD, .SDcols = !(grepl("diff_", names(features)))
+    , .SD, .SDcols = !(grepl("diff", names(features)))
   ]
 
   # Add reference sequence to events
@@ -49,6 +49,7 @@ embed_and_cluster <- function(
   features[
     , `:=`(pos_ref = NULL, chunk_ref = NULL)
   ]
+
   replace_na_dt(features, 0)
   logger::log_debug(glue::glue("Events: {nrow(features)}"))
 
@@ -76,7 +77,7 @@ embed_and_cluster <- function(
 load_processed_chunks <- function(preprocess_out) {
   chunks <- rbindlist(
     lapply(
-    paste_path("/", list.files(paste_path(preprocess_out, "/chunks"), full.names = TRUE), "chunk.tsv"),
+    paste_path(list.files(paste_path(preprocess_out, "/chunks"), full.names = TRUE, include.dirs = TRUE), "chunk.tsv"),
     function(name) {
       fread(name)
     })
@@ -320,10 +321,17 @@ visualise_clusters <- function(
       default_theme_SH() +
       ggplot2::scale_colour_viridis_d(na.value = "gray80")
 
+    plot_scatter_motif <- ggplot(dt) +
+      aes(x = UMAP1, y = UMAP2, color = motif) +
+      geom_point() +
+      default_theme_SH() +
+      ggplot2::scale_colour_viridis_d(na.value = "gray80")
+
     return(
       list(
         plot_scatter,
-        plot_logo
+        plot_logo,
+        plot_scatter_motif
       )
     )
   }

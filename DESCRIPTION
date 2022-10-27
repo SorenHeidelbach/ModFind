@@ -25,7 +25,8 @@ Imports:
     umap,
     dbscan,
     ggseqlogo,
-    seqinr
+    seqinr,
+    future.apply
 Suggests: 
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
