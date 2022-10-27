@@ -7,7 +7,7 @@
 #' @param hdf5 a list of nat and pcr hdf5 objects
 #' @return logical of success status (signal is loaded in memory)
 #' @export
-add_signal_chunk <- function(metainfo_chunk, hdf5) {
+add_signal_chunk <- function(metainfo_chunk, hdf5_list) {
   batches <- names(metainfo_chunk)
   successfully_read <- lapply(batches,
   function(batch) {
@@ -19,12 +19,11 @@ add_signal_chunk <- function(metainfo_chunk, hdf5) {
       tryCatch(
         add_signal(
           metainfo_chunk[[batch]][[type]],
-          hdf5[[type]],
+          hdf5_list[[type]],
           batch
         ),
         error = function(e) FALSE
       )
-      return(TRUE)
     } # type
     )
   } # batch
@@ -48,7 +47,8 @@ add_signal_chunk <- function(metainfo_chunk, hdf5) {
 prepare_metainfo <- function(
                        nat_mapping,
                        pcr_mapping,
-                       hdf5,
+                       nat_hdf5,
+                       pcr_hdf5,
                        chunk_size = 1e5,
                        threads = 1,
                        debug = FALSE,
@@ -60,14 +60,16 @@ prepare_metainfo <- function(
   pcr <- load_mapping(pcr_mapping)
   pcr[, type := "pcr"]
 
+  pcr_hdf5_obj <- hdf5r::H5File$new(pcr_hdf5, mode = "r")
   if (pvp) {
     read_mapping <- pcr[
         sample(1:.N, .N/2), type := "nat"
       ]
-    hdf5[["nat"]] <- hdf5[["pcr"]]
+    nat_hdf5_obj <- pcr_hdf5_obj
   } else {
     nat <- load_mapping(nat_mapping)
     nat[, type := "nat"]
+    nat_hdf5_obj <- hdf5r::H5File$new(nat_hdf5, mode = "r")
     read_mapping <- rbind(pcr, nat)
   }
 
@@ -81,8 +83,8 @@ prepare_metainfo <- function(
   read_mapping <- downsample(read_mapping,  chunk_size = chunk_size)
 
 
-  metainfo_nat <- read_metainfo_all(hdf5[["nat"]])
-  metainfo_pcr <- read_metainfo_all(hdf5[["pcr"]])
+  metainfo_nat <- read_metainfo_all(nat_hdf5_obj)
+  metainfo_pcr <- read_metainfo_all(pcr_hdf5_obj)
 
   metainfo <- rbind(
     metainfo_nat[
@@ -102,6 +104,12 @@ prepare_metainfo <- function(
   ]
   rm(read_mapping)
   gc()
+  no_cov_chunk <- metainfo[length(unique(type)) < 2, chunk_ref, by = chunk_ref]$chunk_ref %>%
+    unique()
+  if (length(no_cov_chunk) > 0) {
+    logger::log_warn(paste0("NAT or PCR missing: ", paste(no_cov_chunk, collapse = ", ")))
+    metainfo <- metainfo[!(chunk_ref %in% no_cov_chunk)]
+  }
 
   metainfo_chunk <- split(
     metainfo,
@@ -132,11 +140,11 @@ read_metainfo = function(hdf5, batch) {
   )
   # Add indices for Ref_to_signal and Dacs
   metainfo[
-      , dacs_end := cumsum(Dacs_lengths)
+      , dacs_end := cumsum(as.numeric(Dacs_lengths))
     ][
       , dacs_start := dacs_end - Dacs_lengths + 1
     ][
-      , ref_to_signal_end := cumsum(Ref_to_signal_lengths)
+      , ref_to_signal_end := cumsum(as.numeric(Ref_to_signal_lengths))
     ][
       , ref_to_signal_start := ref_to_signal_end - Ref_to_signal_lengths + 1
     ]
@@ -183,11 +191,11 @@ get_batches <- function(hdf5){
 #' Loads the signal mappings associated with a batch
 #' 
 #' @param metainfo data.table of metainfo loaded with read_metainfo
-#' @param hdf5 Open hdf5 object
+#' @param hdf5_obj Open hdf5 object
 #' @param batch Batch to load signal mappings from
 #' @return Nothing, signal mappings will be added to the metainfo object in memory
 #' @export
-add_signal = function(metainfo, hdf5, batch) {
+add_signal = function(metainfo, hdf5_obj, batch) {
   # Input checks
   assert::assert({
     required_columns <- c(
@@ -225,14 +233,14 @@ add_signal = function(metainfo, hdf5, batch) {
   # +1 as R, compared to python, indexes from 1
   metainfo[
       , ref_to_signal := list(
-              list(hdf5[[glue::glue('/Batches/{batch}/Ref_to_signal')]][ref_to_signal_start:ref_to_signal_end] + 1)
+              list(hdf5_obj[[glue::glue('/Batches/{batch}/Ref_to_signal')]][ref_to_signal_start:ref_to_signal_end] + 1)
               ),
       by = read_id
     ]
   logger::log_trace(glue::glue("\t\t\tAdding dacs"))
   metainfo[
       , dacs := list(
-              list(hdf5[[glue::glue('/Batches/{batch}/Dacs')]][dacs_start:dacs_end])
+              list(hdf5_obj[[glue::glue('/Batches/{batch}/Dacs')]][dacs_start:dacs_end])
               ),
       by = read_id
     ]
@@ -273,7 +281,6 @@ add_signal = function(metainfo, hdf5, batch) {
       , `:=`(current_norm = NULL)
     ]
 
-    return(NULL)
 }
 
 

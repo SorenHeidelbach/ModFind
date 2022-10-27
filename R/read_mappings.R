@@ -83,7 +83,7 @@ get_overextending_reads <- function(read_mapping, chunk_size) {
     ][
       , over_extension := pos + qwidth - (1 + chunk) * chunk_size
     ][
-      , .(chunk = list(1:(1 + over_extension %/% chunk_size) + chunk)),
+      , .(chunk = 1:(1 + over_extension %/% chunk_size) + chunk),
       by = mget(cnames)
     ][
       chunk <= max_chunk
