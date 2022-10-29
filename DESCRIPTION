@@ -26,7 +26,8 @@ Imports:
     dbscan,
     ggseqlogo,
     seqinr,
-    future.apply
+    future.apply,
+    msa
 Suggests: 
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
