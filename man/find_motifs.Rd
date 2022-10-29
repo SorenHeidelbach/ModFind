@@ -14,7 +14,8 @@ find_motifs(
   event_sequence_frame = 8,
   align_event_sequences = TRUE,
   iterations = 5,
-  iteration_approach = "remove_noise"
+  iteration_approach = "remove_noise",
+  entropy_threshold_motif = 1
 )
 }
 \arguments{
@@ -23,6 +24,8 @@ find_motifs(
 \item{path_ref}{path to reference}
 
 \item{out}{output folder}
+
+\item{entropy_threshold_motif}{Minimum entropy (how stringent motif detection is)}
 
 \item{n_extra_positions}{number of adjacent positions to include in plot}
 

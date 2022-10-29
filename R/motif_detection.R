@@ -540,6 +540,7 @@ plot_motifs  <- function(
 #' @param path_chunk_stats path to preprocess chunks
 #' @param n_extra_positions number of adjacent positions to include in plot
 #' @param motifs_evaluated evaluation type (all, clustered, or vector of motifs)
+#' @param entropy_threshold_motif Minimum entropy (how stringent motif detection is)
 #' @return plots
 #' @import msa
 #' @export
@@ -553,7 +554,8 @@ find_motifs <- function(
   event_sequence_frame = 8,
   align_event_sequences = TRUE,
   iterations = 5,
-  iteration_approach = "remove_noise"
+  iteration_approach = "remove_noise",
+  entropy_threshold_motif = 1
 ){
   # Load processed chunks
   chunks <- load_processed_chunks(path_chunk_stats)
@@ -597,7 +599,7 @@ find_motifs <- function(
     add_motifs <- function(cluster_sequences){
       cluster_entropy <- lapply(
           cluster_sequences,
-          function(x) calculate_bit_score(x, min_entropy = 0.8)
+          function(x) calculate_bit_score(x, min_entropy = entropy_threshold_motif)
         )
       cluster_motifs <- lapply(
         names(cluster_entropy),
