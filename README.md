@@ -30,67 +30,34 @@ reference_path = "path/to/reference.fasta"
 out = "path/to/output"
 chunk_size = 1e5
 
-# HDF5 list
-h5_list <- list(
-  nat = hdf5r::H5File$new(nat_signal, mode = "r"),
-  pcr = hdf5r::H5File$new(pcr_signal, mode = "r")
-)
-
-# Preprocess
+# Load read metainfo
 metainfo <- prepare_metainfo(
-  nat_mapping,
-  pcr_mapping,
-  hdf5 = h5_list,
+  nat_mapping = nat_mapping,
+  pcr_mapping = pcr_mapping,
+  nat_hdf5 = nat_signal,
+  pcr_hdf5 = pcr_signal,
   chunk_size = chunk_size
 )
 
 # Process chunked reads
 preprocess_all_chunks(
-  metainfo,
-  h5_list,
-  out
-)
-
-# Load processed chunks
-chunks <- load_processed_chunks(out)
-
-# Embed and cluster processed chunks
-clusters <- embed_and_cluster(
-  chunks,
-  ref_path = reference_path,
+  metainfo = metainfo,
+  nat_hdf5 = nat_signal,
+  pcr_hdf5 = pcr_signal,
   out = out,
-  umap_args = list(n_components = 3),
-  hdbscan_args = list(minPts = 10)
+  chunk_size = chunk_size
 )
 
-# Get cluster events sequences
-setorder(clusters, HDBSCAN)
-cluster_sequences <- lapply(
-    split(clusters[!is.na(HDBSCAN)], by = "HDBSCAN"),
-    function(x) {
-      toupper(x$seq)
-    }
-  )
-
-# Calculate entropy and select motifs
-lapply(
-    cluster_sequences,
-    function(x) calculate_bit_score(x, min_entropy = 1)
-  )
-
-# Visualise embedd + clustering
-viz <- visualise_clusters(clusters)
-ggsave(
-  paste_path(out, "cluster_scatter.png"),
-  width = 6,
-  height = 5,
-  viz[[1]]
+# Identify motifs
+find_motifs(
+  path_chunk_stats = out,
+  path_ref = reference,
+  out = out
 )
-ggsave(
-  paste_path(out, "cluster_logo.png"),
-  width = 6,
-  height = 5,
-  viz[[2]]
+plot_motifs(
+  cluster_path = file.path(out, "/1/clusters.tsv"),
+  plot_out  = file.path(out, "/1"),
+  path_ref = reference,
+  chunks_path = out
 )
-
 ```
