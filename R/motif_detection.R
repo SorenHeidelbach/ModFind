@@ -319,13 +319,13 @@ visualise_clusters <- function(
 
     plot_scatter <- ggplot(dt) +
       aes(x = UMAP1, y = UMAP2, color = HDBSCAN) +
-      geom_point(alpha = 0.5, size = 0.5) +
+      geom_point(alpha = 0.3, size = 0.3) +
       default_theme_SH() +
       ggplot2::scale_colour_viridis_d(na.value = "#cccccc88")
 
     plot_scatter_motif <- ggplot(dt) +
       aes(x = UMAP1, y = UMAP2, color = motif) +
-      geom_point(alpha = 0.5, size = 0.5) +
+      geom_point(alpha = 0.3, size = 0.3) +
       default_theme_SH() +
       ggplot2::scale_colour_viridis_d(na.value = "#cccccc88")
 
@@ -509,6 +509,7 @@ plot_motifs  <- function(
 #' @param n_extra_positions number of adjacent positions to include in plot
 #' @param motifs_evaluated evaluation type (all, clustered, or vector of motifs)
 #' @return plots
+#' @import msa
 #' @export
 find_motifs <- function(
   path_chunk_stats,
