@@ -435,7 +435,8 @@ plot_motifs  <- function(
         x = "Relative motif position (from motif start)",
         y = "Mean difference",
         title = "Aggregation of mean difference for all motifs"
-      )
+      ) +
+      default_theme_SH()
   }
 
   lapply(
@@ -449,6 +450,12 @@ plot_motifs  <- function(
         p_boxplot,
         device = "pdf"
       )
+      ggsave(
+        paste0(file.path(plot_out, motif, "boxplot"), ".png"),
+        p_boxplot,
+        device = "png"
+      )
+
 
       motif_position_p_val_threshold  <- lapply(
           10^-(c(0, 2, 4, 6, 8, seq(10, 50, by = 10))),
@@ -461,6 +468,11 @@ plot_motifs  <- function(
               paste0(file.path(plot_out, motif, "boxplot_filt"), "/", max_p_val, ".pdf"),
               p_boxplot_filtered,
               device = "pdf"
+            )
+            ggsave(
+              paste0(file.path(plot_out, motif, "boxplot_filt"), "/", max_p_val, ".png"),
+              p_boxplot_filtered,
+              device = "png"
             )
 
             # Number of events at each relaitve motif position
@@ -482,6 +494,7 @@ plot_motifs  <- function(
           aes(x = rel_pos, y = n, fill = p_val_threshold, text = p_val_threshold) +
           geom_area(position = "identity") +
           facet_wrap(~strand) +
+          default_theme_SH() +
           ggplot2::scale_fill_viridis_d() +
           ggplot2::scale_x_continuous(
             labels = unique(motif_position_p_val_threshold$labs),
@@ -491,10 +504,16 @@ plot_motifs  <- function(
           scale_y_continuous(
             expand = c(0, 0)
           )
+
       ggsave(
         file.path(plot_out, motif, "event_threshold.pdf"),
         p_number_of_event,
         device = "pdf"
+      )
+      ggsave(
+        file.path(plot_out, motif, "event_threshold.png"),
+        p_number_of_event,
+        device = "png"
       )
     }
   )
