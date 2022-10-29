@@ -186,8 +186,8 @@ plot_chunk_current <- function(chunk,
 
 
 
-default_theme_SH = function(){
-  theme_grey(base_size = 14, base_family = "sans") %+replace% 
+default_theme_SH  <-  function(){
+  theme_grey(base_size = 14, base_family = "sans") %+replace%
     theme(
       # plot margin
       plot.margin = unit(rep(0.5, 4), "cm"),
@@ -225,6 +225,3 @@ default_theme_SH = function(){
                                 hjust = 0.5)
     )
 }
-
-
-

@@ -29,7 +29,7 @@ embed_and_cluster <- function(
 
   # Prepare features for embedding
   features <- get_event_features(
-    chunks, 
+    chunks,
     p_value_threshold
   )
 
@@ -56,7 +56,7 @@ embed_and_cluster <- function(
   # Embedding
   logger::log_debug("Embedding")
   emb_umap <- do.call(embed_umap, list(features, umap_args = umap_args))
-  fwrite(emb_umap, paste0(out, "umap.tsv"))
+  fwrite(emb_umap, paste_path(out, "umap.tsv"))
 
   logger::log_debug(glue::glue("Clustering"))
   do.call(cluster_emb, list(emb_umap, hdbscan_args = hdbscan_args))
@@ -181,7 +181,9 @@ calculate_bit_score <- function(
     uniform_entropy <- 4 * -0.25 * log2(0.25)
     n_sequences <- length(sequences)
     sequence_length <- nchar(sequences)[1]
-    small_n_correction <- (1/log(2)) * 3/(2*n_sequences)
+    small_n_correction <- function(n) {
+      (1/log(2)) * 3/(2*n)
+    }
 
     # Nucleotides count at each position
     count_positional_character  <- function(seq, character_regex){
@@ -225,7 +227,7 @@ calculate_bit_score <- function(
 
     # Positionwise frequency of nucleotides
     dt[
-        , freq := n / n_sequences
+        , freq := n / n_sequences, by = position
       ][
         , entropy_loss := - freq * log2(freq)
       ]
@@ -233,7 +235,7 @@ calculate_bit_score <- function(
 
     # Entropy at each position
     dt[
-        , entropy := uniform_entropy - sum(entropy_loss) - small_n_correction
+        , entropy := uniform_entropy - sum(entropy_loss) - small_n_correction(n_sequences)
         , by = position
       ][
         , height := entropy * freq
@@ -263,7 +265,7 @@ calculate_bit_score <- function(
     setorder(motif, position, freq)
     consensus <- paste0(
       motif[
-        , .(paste(nucleotide, collapse = ">"))
+        , .(paste(nucleotide, collapse = "|"))
         , by = position
       ]$V1, 
       collapse = "  ")
@@ -317,15 +319,15 @@ visualise_clusters <- function(
 
     plot_scatter <- ggplot(dt) +
       aes(x = UMAP1, y = UMAP2, color = HDBSCAN) +
-      geom_point() +
+      geom_point(alpha = 0.5, size = 0.5) +
       default_theme_SH() +
-      ggplot2::scale_colour_viridis_d(na.value = "gray80")
+      ggplot2::scale_colour_viridis_d(na.value = "#cccccc88")
 
     plot_scatter_motif <- ggplot(dt) +
       aes(x = UMAP1, y = UMAP2, color = motif) +
-      geom_point() +
+      geom_point(alpha = 0.5, size = 0.5) +
       default_theme_SH() +
-      ggplot2::scale_colour_viridis_d(na.value = "gray80")
+      ggplot2::scale_colour_viridis_d(na.value = "#cccccc88")
 
     return(
       list(
@@ -338,3 +340,316 @@ visualise_clusters <- function(
 
 
 
+#' Visualise motif profiles 
+#' 
+#' Visualise the identified clusters 
+#' 
+#' @param cluster_path path to motif_find clsuter.tsv
+#' @param plot_out path to plot output
+#' @param chunks_path path to preprocess chunks
+#' @param n_extra_positions number of adjacent positions to include in plot
+#' @param motifs_evaluated evaluation type (all, clustered, or vector of motifs)
+#' @return plots
+#' @export
+plot_motifs  <- function(
+  cluster_path,
+  plot_out,
+  chunks_path,
+  n_extra_positions = 7,
+  motifs_evaluated = "all"
+) {
+  chunks <- load_processed_chunks(chunks_path)
+  clusters <- fread(cluster_path)
+  motifs <- unique(clusters$motif)
+  motifs <- motifs[nchar(motifs) > 1]
+  ref  <- seqinr::read.fasta(reference_path, as.string = TRUE)
+
+  motif_position <- if ("clustered" %in% motifs_evaluated) {
+    # Get only clustered motif positions
+    clusters[
+        nchar(motif) > 1
+      ][
+        , start := stringr::str_locate(toupper(seq), motif)[[1]], by = .(pos_ref, chunk_ref)
+      ][
+        , start := start - (nchar(clusters$seq[[1]]) - 1) / 2 - 1 + pos_ref
+      ]
+  } else if ("all" %in% motifs_evaluated) {
+    # Get all motif positions in reference
+    motif_position <- lapply(
+      motifs,
+      function(motif) {
+        as.data.table(
+          stringr::str_locate_all(toupper(ref), motif)
+        )[
+          , motif := motif
+        ]
+      }
+    ) %>% rbindlist()
+  } else {
+    motif_position <- lapply(
+      motifs_evaluated,
+      function(motif) {
+        as.data.table(
+          stringr::str_locate_all(toupper(ref), motif)
+        )[
+          , motif := motif
+        ]
+      }
+    ) %>% rbindlist()
+  }
+
+  # Expand relative to motif start
+  motif_position <- motif_position[
+      , .(N = c(
+          rep(".", n_extra_positions),
+          unlist(strsplit(motif, "")),
+          rep(".", n_extra_positions)
+        ))
+      , by = .(start, motif)
+    ][
+      , rel_pos := seq_len(.N) - n_extra_positions - 1, by = .(start, motif)
+    ][
+      , pos_ref := start + rel_pos
+    ][
+      , pos_label := paste0(rel_pos, "\n", N)
+    ]
+
+  # Add statistics and strand direction
+  motif_position <- merge(
+      motif_position,
+      chunks[, .SD, .SDcols = c("pos_ref", "strand", "mean_diff", "p_val")],
+      all = TRUE
+    )[
+      !is.na(motif) & !is.na(mean_diff)
+    ]
+
+  motif_position <- split(motif_position, by = "motif")
+  aggregated_motif_boxplot  <- function(motif_position_filt) {
+    ggplot(motif_position_filt) +
+      aes(y = mean_diff, x = reorder(pos_label, rel_pos)) +
+      geom_jitter(size = 0.3, alpha = 0.1) +
+      geom_boxplot(outlier.alpha = 0) +
+      facet_wrap(~strand) +
+      labs(
+        x = "Relative motif position (from motif start)",
+        y = "Mean difference",
+        title = "Aggregation of mean difference for all motifs"
+      )
+  }
+
+  lapply(
+    names(motif_position),
+    function(motif) {
+      # Box plot of all motifs
+      dir.create(file.path(plot_out, motif))
+      p_boxplot  <- aggregated_motif_boxplot(motif_position[[motif]])
+      ggsave(
+        paste0(file.path(plot_out, motif, "boxplot"), ".pdf"),
+        p_boxplot,
+        device = "pdf"
+      )
+
+      motif_position_p_val_threshold  <- lapply(
+          10^-(c(0, 2, 4, 6, 8, seq(10, 50, by = 10))),
+          function(max_p_val) {
+            motif_position_filt <- motif_position[[motif]][p_val < max_p_val]
+            # Box plot of motifs
+            p_boxplot_filtered  <- aggregated_motif_boxplot(motif_position_filt)
+            dir.create(file.path(plot_out, motif, "boxplot_filt"), showWarnings = FALSE)
+            ggsave(
+              paste0(file.path(plot_out, motif, "boxplot_filt"), "/", max_p_val, ".pdf"),
+              p_boxplot_filtered,
+              device = "pdf"
+            )
+
+            # Number of events at each relaitve motif position
+            motif_position_filt[
+                , .(n = .N), by = .(N, rel_pos, strand)
+              ][
+                , p_val_threshold := max_p_val
+              ][
+                , p_val_threshold := reorder(as.character(p_val_threshold), p_val_threshold, decreasing = TRUE)
+              ][
+                , labs := reorder(paste0(rel_pos, "\n", N), rel_pos)
+              ]
+          }
+        )  %>%
+        rbindlist()
+
+      # Plot number of events remaining at different thresholds
+      p_number_of_event <-  ggplot(motif_position_p_val_threshold) +
+          aes(x = rel_pos, y = n, fill = p_val_threshold, text = p_val_threshold) +
+          geom_area(position = "identity") +
+          facet_wrap(~strand) +
+          ggplot2::scale_fill_viridis_d() +
+          ggplot2::scale_x_continuous(
+            labels = unique(motif_position_p_val_threshold$labs),
+            breaks = unique(motif_position_p_val_threshold$rel_pos),
+            expand = c(0, 0)
+          ) +
+          scale_y_continuous(
+            expand = c(0, 0)
+          )
+      ggsave(
+        file.path(plot_out, motif, "event_threshold.pdf"),
+        p_number_of_event,
+        device = "pdf"
+      )
+    }
+  )
+}
+
+#' Visualise motif profiles 
+#' 
+#' Visualise the identified clusters 
+#' 
+#' @param out output folder
+#' @param path_ref path to reference
+#' @param path_chunk_stats path to preprocess chunks
+#' @param n_extra_positions number of adjacent positions to include in plot
+#' @param motifs_evaluated evaluation type (all, clustered, or vector of motifs)
+#' @return plots
+#' @export
+find_motifs <- function(
+  path_chunk_stats,
+  path_ref,
+  out,
+  umap_args = list(n_components = 2),
+  hdbscan_args =  list(minPts = 30),
+  p_value_threshold = 1e-20,
+  event_sequence_frame = 8,
+  align_event_sequences = TRUE,
+  iterations = 5,
+  iteration_approach = "remove_noise"
+){
+  # Load processed chunks
+  chunks <- load_processed_chunks(path_chunk_stats)
+  continue <- TRUE
+  iter <- 1
+  while (continue) {
+    dir.create(file.path(out, iter), recursive = TRUE, showWarnings = FALSE)
+    
+    # Embed and cluster processed chunks
+    clusters <- embed_and_cluster(
+      chunks,
+      ref_path = path_ref,
+      out = file.path(out, iter),
+      p_value_threshold = p_value_threshold,
+      event_sequence_frame = event_sequence_frame,
+      umap_args = umap_args,
+      hdbscan_args = hdbscan_args
+    )
+    # Get cluster events sequences
+    setorder(clusters, HDBSCAN)
+
+    cluster_sequences <- lapply(
+        split(clusters[!is.na(HDBSCAN)], by = "HDBSCAN"),
+        function(x) {
+          toupper(x$seq)
+        }
+      )
+    if (align_event_sequences) {
+      cluster_sequences_aligned <- lapply(
+        cluster_sequences,
+        function(sequences) {
+          alignment <- msa::msa(sequences, type = "dna", gapOpen = 1000) %>%
+            msa::msaConvert(type = "seqinr::alignment")
+          alignment$seq
+        })
+      names(cluster_sequences_aligned) <- names(cluster_sequences)
+      cluster_sequences <- cluster_sequences_aligned
+    }
+
+    # Calculate entropy and select motifs
+    add_motifs <- function(cluster_sequences){
+      cluster_entropy <- lapply(
+          cluster_sequences,
+          function(x) calculate_bit_score(x, min_entropy = 0.8)
+        )
+      cluster_motifs <- lapply(
+        names(cluster_entropy),
+        function(cluster) {
+          data.table(
+            HDBSCAN = as.factor(cluster),
+            motif = cluster_entropy[[cluster]]$motif_consensus %>%
+              stringr::str_remove_all("^[. ]*") %>%
+              stringr::str_remove_all("[. ]*$") %>%
+              stringr::str_remove_all("[ ]")
+      )}) %>%
+        rbindlist()
+      return(cluster_motifs)
+    }
+    # Join cluster motif
+    clusters[
+      add_motifs(cluster_sequences), on = "HDBSCAN", motif := i.motif
+    ]
+    # Save clustering
+    fwrite(clusters, file.path(out, iter, "clusters.tsv"), sep = "\t")
+
+    # Visualise embedd + clustering
+    viz <- visualise_clusters(clusters)
+    ggplot2::ggsave(
+      file.path(out, iter, "cluster_scatter.png"),
+      width = 6,
+      height = 5,
+      viz[[1]]
+    )
+    ggplot2::ggsave(
+      file.path(out, iter, "cluster_logo.png"),
+      width = 20,
+      height = 16,
+      viz[[2]]
+    )
+    ggplot2::ggsave(
+      file.path(out, iter, "cluster_scatter_motif.png"),
+      width = 6,
+      height = 5,
+      viz[[3]]
+    )
+
+
+    switch(iteration_approach,
+      "remove_biggest_cluster" = {
+        # Identify biggest cluster
+        clusters_to_keep <- clusters$HDBSCAN %>%
+          table() %>%
+          sort(decreasing = TRUE) %>%
+          `[`(-1) %>%
+          names() %>%
+          as.numeric()
+        # Remove biggest cluster events from `chunks`
+        clusters_kept <- clusters[
+            HDBSCAN %in% c(clusters_to_keep, NA), .SD, .SDcols = c("pos_ref", "chunk_ref", "HDBSCAN")
+          ][
+            , keep := TRUE
+          ]
+        chunks[, keep := FALSE]
+        chunks <- chunks[
+            clusters_kept, on = c("pos_ref", "chunk_ref"), keep := i.keep
+          ][
+            keep == TRUE
+          ]
+      },
+      "remove_noise" = {
+        # Remove noise events from `chunks`
+        clusters_kept <- clusters[
+            !is.na(HDBSCAN), .SD, .SDcols = c("pos_ref", "chunk_ref", "HDBSCAN")
+          ][
+            , keep := TRUE
+          ]
+        chunks[, keep := FALSE]
+        chunks <- chunks[
+            clusters_kept, on = c("pos_ref", "chunk_ref"), keep := i.keep
+          ][
+            keep == TRUE
+          ]
+      },
+    stop("Invalid `iteration_approach` value ('remove_biggest_cluster' or 
+          'remove_noise')")
+    )
+    iter <- iter + 1
+    if (iter > iterations) {
+      continue <- FALSE
+    }
+  }
+}
