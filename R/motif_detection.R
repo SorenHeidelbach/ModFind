@@ -355,6 +355,7 @@ plot_motifs  <- function(
   cluster_path,
   plot_out,
   chunks_path,
+  path_ref,
   n_extra_positions = 7,
   motifs_evaluated = "all"
 ) {
@@ -362,7 +363,7 @@ plot_motifs  <- function(
   clusters <- fread(cluster_path)
   motifs <- unique(clusters$motif)
   motifs <- motifs[nchar(motifs) > 1]
-  ref  <- seqinr::read.fasta(reference_path, as.string = TRUE)
+  ref  <- seqinr::read.fasta(path_ref, as.string = TRUE)
 
   motif_position <- if ("clustered" %in% motifs_evaluated) {
     # Get only clustered motif positions

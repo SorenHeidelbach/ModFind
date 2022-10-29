@@ -8,6 +8,7 @@ plot_motifs(
   cluster_path,
   plot_out,
   chunks_path,
+  path_ref,
   n_extra_positions = 7,
   motifs_evaluated = "all"
 )
