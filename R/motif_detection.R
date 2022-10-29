@@ -448,11 +448,15 @@ plot_motifs  <- function(
       ggsave(
         paste0(file.path(plot_out, motif, "boxplot"), ".pdf"),
         p_boxplot,
+        width = 6,
+        height = 5,
         device = "pdf"
       )
       ggsave(
         paste0(file.path(plot_out, motif, "boxplot"), ".png"),
         p_boxplot,
+        width = 6,
+        height = 5,
         device = "png"
       )
 
@@ -467,11 +471,15 @@ plot_motifs  <- function(
             ggsave(
               paste0(file.path(plot_out, motif, "boxplot_filt"), "/", max_p_val, ".pdf"),
               p_boxplot_filtered,
+              width = 6,
+              height = 5,
               device = "pdf"
             )
             ggsave(
               paste0(file.path(plot_out, motif, "boxplot_filt"), "/", max_p_val, ".png"),
               p_boxplot_filtered,
+              width = 6,
+              height = 5,
               device = "png"
             )
 
@@ -508,11 +516,15 @@ plot_motifs  <- function(
       ggsave(
         file.path(plot_out, motif, "event_threshold.pdf"),
         p_number_of_event,
+        width = 6,
+        height = 5,
         device = "pdf"
       )
       ggsave(
         file.path(plot_out, motif, "event_threshold.png"),
         p_number_of_event,
+        width = 6,
+        height = 5,
         device = "png"
       )
     }
