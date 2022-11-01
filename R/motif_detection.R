@@ -613,12 +613,16 @@ find_motifs <- function(
   path_chunk_stats,
   path_ref,
   out,
-  umap_args = list(n_components = 2),
-  hdbscan_args =  list(minPts = 30),
+  umap_args = list(
+    n_components = 2,
+    min_dist = 0.05,
+    n_neighbors = 30
+    ),
+  hdbscan_args =  list(minPts = 15),
   event_pval_limit = 1e-20,
   event_sequence_frame = 8,
   align_event_sequences = TRUE,
-  iterations = 5,
+  iterations = 3,
   iteration_approach = "remove_noise",
   entropy_threshold_motif = 1
 ) {
