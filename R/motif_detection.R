@@ -1,18 +1,17 @@
 
 #' Embed joined chunks
-#' 
+#'
 #' Wrapper function for umbedding and clustering. Take the data.table containing
-#' the output the preprocess_chunk function. Precessed chunks can be loaded using 
+#' the output the preprocess_chunk function. Precessed chunks can be loaded using
 #' load_processed_chunks
-#' 
-#' 
+#'
 #' @param chunks preprocessed chunks generated with preprocess_all_chunks
 #' @param ref_path path to the reference passed to megalodon
 #' @param out character string with path to output results
-#' @param p_value_threshold Numeric, max p-value for events
+#' @param event_pval_limit Numeric, max p-value for events
 #' @param event_sequence_frame integer, number of nucleotide to include to each side
 #' @param umap_args list of arguments passed directly to umap (See ?umap::umap)
-#' https://cran.r-project.org/web/packages/umap/vignettes/umap.html
+#' https://cran.r-project.org/web/packages/umap/vignettes/umap.html#configuration-objects
 #' @param hdbscan_Args list of arguments passed directly to hdbscan (See ?dbscan::hdbscan)
 #' @return embedded and clustered positions
 #' @export
@@ -20,7 +19,7 @@ embed_and_cluster <- function(
     chunks,
     ref_path,
     out,
-    p_value_threshold = 1e-6,
+    event_pval_limit = 1e-30,
     event_sequence_frame = 5,
     umap_args = list(),
     hdbscan_args = list()
@@ -30,7 +29,7 @@ embed_and_cluster <- function(
   # Prepare features for embedding
   features <- get_event_features(
     chunks,
-    p_value_threshold
+    event_pval_limit
   )
 
   features_metainfo <- features[
@@ -55,26 +54,57 @@ embed_and_cluster <- function(
 
   # Embedding
   logger::log_debug("Embedding")
-  emb_umap <- do.call(embed_umap, list(features, umap_args = umap_args))
-  fwrite(emb_umap, paste_path(out, "umap.tsv"))
+  embedding <- do.call(embed, list(features, umap_args = umap_args))
 
+  # Clustering
   logger::log_debug(glue::glue("Clustering"))
-  do.call(cluster_emb, list(emb_umap, hdbscan_args = hdbscan_args))
-  emb_umap <- cbind(
-    emb_umap,
+  do.call(cluster_embedding, list(embedding, hdbscan_args = hdbscan_args))
+  embedding <- cbind(
+    embedding,
     features_metainfo
   )
-  return(emb_umap)
+
+  # Save results
+  fwrite(embedding, paste_path(out, "embedding.tsv"))
+  return(embedding)
 }
 
-#' Load preprocessed chunks
-#' 
-#' Loads the output of the preprocess function
-#' 
-#' @param preprocess_out path specified by 'out' in the preprocess function
-#' @return joined chunks
-#' @export
-load_processed_chunks <- function(preprocess_out) {
+################################################################################
+
+get_event_features <- function(signal, event_pval_limit = 1e-6) {
+  signal[
+    , event := min(p_val) < event_pval_limit, by = .(pos_ref)
+    ]
+  events <- gather_plus_and_minus_strand(signal)
+  return(events)
+}
+
+################################################################################
+
+gather_plus_and_minus_strand <- function(chunk) {
+    chunk_merged <- merge(
+    chunk[
+        event == TRUE & strand == "-",
+      ][
+        , .SD, .SDcols = names(chunk) %like% "diff|pos_ref|chunk_ref"
+      ],
+    chunk[
+        event == TRUE & strand == "+",
+      ][
+        , .SD, .SDcols = names(chunk) %like% "diff|pos_ref|chunk_ref"
+      ],
+    by = c("pos_ref", "chunk_ref"),
+    all = TRUE,
+    suffixes = c("_minus", "_plus")
+  )
+  return(chunk_merged)
+}
+
+################################################################################
+
+load_processed_chunks <- function(
+  preprocess_out
+) {
   chunks <- rbindlist(
     lapply(
     paste_path(list.files(paste_path(preprocess_out, "/chunks"), full.names = TRUE, include.dirs = TRUE), "chunk.tsv"),
@@ -86,53 +116,57 @@ load_processed_chunks <- function(preprocess_out) {
   return(chunks)
 }
 
-embed_umap <- function(
-    features,
-    umap_args = list()
-  ) {
+################################################################################
+
+embed <- function(
+  features,
+  umap_args = list()
+) {
   checkmate::assert_data_table(
     features,
     types = c("numeric"),
     any.missing = FALSE
   )
+  # Add data to UMAP arguments
   umap_args$d <- features
   embedding <- do.call(umap::umap, umap_args)
   dt <- data.table(embedding$layout)
   setnames(
     dt,
     old = names(dt),
-    new = paste0("UMAP", 1:ncol(dt))
+    new = paste0("UMAP", seq_len(ncol(dt)))
   )
   return(dt)
 }
 
+################################################################################
 
-
-cluster_emb <- function(
-    embedding,
-    hdbscan_args = list()
-  ){
+cluster_embedding <- function(
+  embedding,
+  hdbscan_args = list()
+) {
   # Argument check
   checkmate::assert_data_table(
     embedding,
     types = "numeric",
     any.missing = FALSE
   )
-
+  # add embedding to cluster arguments
   hdbscan_args$x <- embedding
-  clusters_hdbscan <- do.call(dbscan::hdbscan, hdbscan_args)
+  clustering <- do.call(dbscan::hdbscan, hdbscan_args)
   embedding[
-      , HDBSCAN := clusters_hdbscan$cluster
+      , cluster := clustering$cluster
     ][
-      , cluster_prob := clusters_hdbscan$membership_prob
+      , membership_prob := clustering$membership_prob
     ]
   embedding[
-      , HDBSCAN := fifelse(HDBSCAN == 0, NA_integer_, HDBSCAN)
+      , cluster := fifelse(cluster == 0, NA_integer_, cluster)
     ][
-      , HDBSCAN := as.factor(HDBSCAN)
+      , cluster := as.factor(cluster)
     ]
 }
 
+################################################################################
 
 add_event_frame_sequence <- function(
   feature,
@@ -153,20 +187,13 @@ add_event_frame_sequence <- function(
     ]
 }
 
-#' Calculate bit score and extract motifs
-#' 
-#' The entropy at each postion in supplied sequences. The entropy
-#' calculated based on
-#' https://en.wikipedia.org/wiki/Sequence_logo#Logo_creation.
-#' 
-#' @param sequences list of sequences of the same length
-#' @return list(entropy_dt, motif_dt, motif_vec)
-#' @export
+################################################################################
+
 calculate_bit_score <- function(
-    sequences,
-    nucleotides = c("G", "C", "A", "T"),
-    min_entropy = 0.4
-  ) {
+  sequences,
+  nucleotides = c("G", "C", "A", "T"),
+  min_entropy = 0.4
+) {
     # Argument checks
     checkmate::assert_vector(
         sequences,
@@ -182,19 +209,20 @@ calculate_bit_score <- function(
     n_sequences <- length(sequences)
     sequence_length <- nchar(sequences)[1]
     small_n_correction <- function(n) {
-      (1/log(2)) * 3/(2*n)
+      (1/log(2)) * 3 / (2 * n)
     }
 
     # Nucleotides count at each position
-    count_positional_character  <- function(seq, character_regex){
-        sequence_length = nchar(seq)[1]
+    count_positional_character  <- function(seq, character_regex) {
+        sequence_length <- nchar(seq)[1]
         lapply(1:sequence_length,
             function(position) {
                 paste0("^", paste(rep(".", position - 1), collapse = ""), character_regex) %>%
                     grepl(seq) %>%
                     sum()
             }
-        ) %>% unlist()
+        ) %>%
+        unlist()
     }
     # Identify number of positional matches of nucleotides
     dt <- data.table(
@@ -208,7 +236,7 @@ calculate_bit_score <- function(
     )
 
     dt[
-      , position := 1:.N
+      , position := seq_len(.N)
     ]
     setnames(
         dt,
@@ -267,7 +295,7 @@ calculate_bit_score <- function(
       motif[
         , .(paste(nucleotide, collapse = "|"))
         , by = position
-      ]$V1, 
+      ]$V1,
       collapse = "  ")
 
     return(
@@ -279,71 +307,65 @@ calculate_bit_score <- function(
     )
 }
 
+################################################################################
 
-#' Visualise clusters
-#' 
-#' Visualise the identified clusters 
-#' 
-#' @param dt data.table outputted from embed_and_cluster
-#' @return list(scatter_plot, logo_plot)
-#' @export
 visualise_clusters <- function(
-    dt
-  ) {
-    # Check inputs
-    checkmate::assert_data_table(dt)
-    checkmate::assert_subset(
-      c("HDBSCAN", "UMAP1", "UMAP2", "seq"),
-      names(dt)
+  dt
+) {
+  # Check inputs
+  checkmate::assert_data_table(dt)
+  checkmate::assert_subset(
+    c("cluster", "UMAP1", "UMAP2", "seq"),
+    names(dt)
+  )
+
+  # Get list of event sequences by cluster
+  cluster_sequences <- lapply(
+    split(dt[!is.na(cluster)], by = "cluster"),
+    function(x) {
+      toupper(x$seq)
+    }
+  )
+  # Meaningfull name
+  names(cluster_sequences) <- paste0(
+    "Cluster ", names(cluster_sequences), ", n = ",
+    lengths(cluster_sequences)
+    )
+  plot_logo <- ggseqlogo::ggseqlogo(
+    cluster_sequences,
+    seq_type = "dna") +
+    default_theme_SH() +
+    theme(
+      panel.grid.major.x = element_blank()
     )
 
-    # Get list of event sequences by cluster
-    cluster_sequences <- lapply(
-      split(dt[!is.na(HDBSCAN)], by = "HDBSCAN"),
-      function(x) {
-        toupper(x$seq)
-      }
+  plot_scatter <- ggplot(dt) +
+    aes(x = UMAP1, y = UMAP2, color = cluster) +
+    geom_point(alpha = 0.3, size = 0.3) +
+    default_theme_SH() +
+    ggplot2::scale_colour_viridis_d(na.value = "#cccccc88")
+
+  plot_scatter_motif <- ggplot(dt) +
+    aes(x = UMAP1, y = UMAP2, color = motif) +
+    geom_point(alpha = 0.3, size = 0.3) +
+    default_theme_SH() +
+    ggplot2::scale_colour_viridis_d(na.value = "#cccccc88")
+
+  return(
+    list(
+      plot_scatter,
+      plot_logo,
+      plot_scatter_motif
     )
-    # Meaningfull name
-    names(cluster_sequences) <- paste0(
-      "Cluster ", names(cluster_sequences), ", n = ",
-      lengths(cluster_sequences)
-      )
-    plot_logo <- ggseqlogo::ggseqlogo(
-      cluster_sequences, 
-      seq_type = "dna") +
-      default_theme_SH() +
-      theme(
-        panel.grid.major.x = element_blank()
-      )
+  )
+}
 
-    plot_scatter <- ggplot(dt) +
-      aes(x = UMAP1, y = UMAP2, color = HDBSCAN) +
-      geom_point(alpha = 0.3, size = 0.3) +
-      default_theme_SH() +
-      ggplot2::scale_colour_viridis_d(na.value = "#cccccc88")
+################################################################################
 
-    plot_scatter_motif <- ggplot(dt) +
-      aes(x = UMAP1, y = UMAP2, color = motif) +
-      geom_point(alpha = 0.3, size = 0.3) +
-      default_theme_SH() +
-      ggplot2::scale_colour_viridis_d(na.value = "#cccccc88")
-
-    return(
-      list(
-        plot_scatter,
-        plot_logo,
-        plot_scatter_motif
-      )
-    )
-  }
-
-
-
-#' Visualise motif profiles 
-#' 
-#' Visualise the identified clusters 
-#' 
+#' Visualise motif profiles
+#'
+#' Visualise the identified clusters
+#'
 #' @param cluster_path path to motif_find clsuter.tsv
 #' @param plot_out path to plot output
 #' @param chunks_path path to preprocess chunks
@@ -364,6 +386,43 @@ plot_motifs  <- function(
   motifs <- unique(clusters$motif)
   motifs <- motifs[nchar(motifs) > 1]
   ref  <- seqinr::read.fasta(path_ref, as.string = TRUE)
+
+  # Clean motif consensus
+  clusters[
+    , motif := motif %>%
+        stringr::str_remove_all("^[. ]*") %>%
+        stringr::str_remove_all("[. ]*$") %>%
+        stringr::str_remove_all("[ ]")  %>%
+        stringr::str_remove_all("^.\\.*.$") %>%
+        stringr::str_remove_all("^.$")
+  ][
+    , cluster := as.factor(cluster)
+  ][
+    , small_cluster := .N < nrow(clusters) * 0.001, by = motif
+  ][
+    small_cluster == TRUE, motif := "", by = motif
+  ]
+
+  # Visualise embedd + clustering
+  viz <- visualise_clusters(clusters)
+  ggplot2::ggsave(
+    file.path(plot_out, "cluster_scatter.png"),
+    width = 6,
+    height = 5,
+    viz[[1]]
+  )
+  ggplot2::ggsave(
+    file.path(plot_out, "cluster_logo.png"),
+    width = 20,
+    height = 16,
+    viz[[2]]
+  )
+  ggplot2::ggsave(
+    file.path(plot_out, "cluster_scatter_motif.png"),
+    width = 6,
+    height = 5,
+    viz[[3]]
+  )
 
   motif_position <- if ("clustered" %in% motifs_evaluated) {
     # Get only clustered motif positions
@@ -461,35 +520,39 @@ plot_motifs  <- function(
       )
 
 
-      motif_position_p_val_threshold  <- lapply(
+      motif_position_event_pval_limit  <- lapply(
           10^-(c(0, 2, 4, 6, 8, seq(10, 50, by = 10))),
           function(max_p_val) {
             motif_position_filt <- motif_position[[motif]][p_val < max_p_val]
-            # Box plot of motifs
-            p_boxplot_filtered  <- aggregated_motif_boxplot(motif_position_filt)
-            dir.create(file.path(plot_out, motif, "boxplot_filt"), showWarnings = FALSE)
-            ggsave(
-              paste0(file.path(plot_out, motif, "boxplot_filt"), "/", max_p_val, ".pdf"),
-              p_boxplot_filtered,
-              width = 10,
-              height = 5,
-              device = "pdf"
-            )
-            ggsave(
-              paste0(file.path(plot_out, motif, "boxplot_filt"), "/", max_p_val, ".png"),
-              p_boxplot_filtered,
-              width = 10,
-              height = 5,
-              device = "png"
-            )
+            if(nrow(motif_position_filt > 0)) {
+              # Box plot of motifs
+              p_boxplot_filtered  <- aggregated_motif_boxplot(motif_position_filt)
+              dir.create(file.path(plot_out, motif, "boxplot_filt"), showWarnings = FALSE)
+              ggsave(
+                paste0(file.path(plot_out, motif, "boxplot_filt"), "/", max_p_val, ".pdf"),
+                p_boxplot_filtered,
+                width = 10,
+                height = 5,
+                device = "pdf"
+              )
+              ggsave(
+                paste0(file.path(plot_out, motif, "boxplot_filt"), "/", max_p_val, ".png"),
+                p_boxplot_filtered,
+                width = 10,
+                height = 5,
+                device = "png"
+              )
+            } else{
+              return()
+            }
 
             # Number of events at each relaitve motif position
             motif_position_filt[
                 , .(n = .N), by = .(N, rel_pos, strand)
               ][
-                , p_val_threshold := max_p_val
+                , event_pval_limit := max_p_val
               ][
-                , p_val_threshold := reorder(as.character(p_val_threshold), p_val_threshold, decreasing = TRUE)
+                , event_pval_limit := reorder(as.character(event_pval_limit), event_pval_limit, decreasing = TRUE)
               ][
                 , labs := reorder(paste0(rel_pos, "\n", N), rel_pos)
               ]
@@ -498,15 +561,15 @@ plot_motifs  <- function(
         rbindlist()
 
       # Plot number of events remaining at different thresholds
-      p_number_of_event <-  ggplot(motif_position_p_val_threshold) +
-          aes(x = rel_pos, y = n, fill = p_val_threshold, text = p_val_threshold) +
+      p_number_of_event <-  ggplot(motif_position_event_pval_limit) +
+          aes(x = rel_pos, y = n, fill = event_pval_limit, text = event_pval_limit) +
           geom_area(position = "identity") +
           facet_wrap(~strand) +
           default_theme_SH() +
           ggplot2::scale_fill_viridis_d() +
           ggplot2::scale_x_continuous(
-            labels = unique(motif_position_p_val_threshold$labs),
-            breaks = unique(motif_position_p_val_threshold$rel_pos),
+            labels = unique(motif_position_event_pval_limit$labs),
+            breaks = unique(motif_position_event_pval_limit$rel_pos),
             expand = c(0, 0)
           ) +
           scale_y_continuous(
@@ -531,10 +594,12 @@ plot_motifs  <- function(
   )
 }
 
-#' Visualise motif profiles 
-#' 
-#' Visualise the identified clusters 
-#' 
+################################################################################
+
+#'
+#'
+#' Visualise the identified clusters
+#'
 #' @param out output folder
 #' @param path_ref path to reference
 #' @param path_chunk_stats path to preprocess chunks
@@ -550,35 +615,35 @@ find_motifs <- function(
   out,
   umap_args = list(n_components = 2),
   hdbscan_args =  list(minPts = 30),
-  p_value_threshold = 1e-20,
+  event_pval_limit = 1e-20,
   event_sequence_frame = 8,
   align_event_sequences = TRUE,
   iterations = 5,
   iteration_approach = "remove_noise",
   entropy_threshold_motif = 1
-){
+) {
   # Load processed chunks
   chunks <- load_processed_chunks(path_chunk_stats)
   continue <- TRUE
   iter <- 1
   while (continue) {
     dir.create(file.path(out, iter), recursive = TRUE, showWarnings = FALSE)
-    
+
     # Embed and cluster processed chunks
     clusters <- embed_and_cluster(
       chunks,
       ref_path = path_ref,
       out = file.path(out, iter),
-      p_value_threshold = p_value_threshold,
+      event_pval_limit = event_pval_limit,
       event_sequence_frame = event_sequence_frame,
       umap_args = umap_args,
       hdbscan_args = hdbscan_args
     )
     # Get cluster events sequences
-    setorder(clusters, HDBSCAN)
+    setorder(clusters, cluster)
 
     cluster_sequences <- lapply(
-        split(clusters[!is.na(HDBSCAN)], by = "HDBSCAN"),
+        split(clusters[!is.na(cluster)], by = "cluster"),
         function(x) {
           toupper(x$seq)
         }
@@ -596,57 +661,32 @@ find_motifs <- function(
     }
 
     # Calculate entropy and select motifs
-    add_motifs <- function(cluster_sequences){
+    add_motifs <- function(cluster_sequences) {
       cluster_entropy <- lapply(
           cluster_sequences,
           function(x) calculate_bit_score(x, min_entropy = entropy_threshold_motif)
         )
       cluster_motifs <- lapply(
         names(cluster_entropy),
-        function(cluster) {
+        function(clust) {
           data.table(
-            HDBSCAN = as.factor(cluster),
-            motif = cluster_entropy[[cluster]]$motif_consensus %>%
-              stringr::str_remove_all("^[. ]*") %>%
-              stringr::str_remove_all("[. ]*$") %>%
-              stringr::str_remove_all("[ ]")
+            cluster = as.factor(clust),
+            motif = cluster_entropy[[clust]]$motif_consensus
       )}) %>%
         rbindlist()
       return(cluster_motifs)
     }
     # Join cluster motif
     clusters[
-      add_motifs(cluster_sequences), on = "HDBSCAN", motif := i.motif
+      add_motifs(cluster_sequences), on = "cluster", motif := i.motif
     ]
     # Save clustering
     fwrite(clusters, file.path(out, iter, "clusters.tsv"), sep = "\t")
 
-    # Visualise embedd + clustering
-    viz <- visualise_clusters(clusters)
-    ggplot2::ggsave(
-      file.path(out, iter, "cluster_scatter.png"),
-      width = 6,
-      height = 5,
-      viz[[1]]
-    )
-    ggplot2::ggsave(
-      file.path(out, iter, "cluster_logo.png"),
-      width = 20,
-      height = 16,
-      viz[[2]]
-    )
-    ggplot2::ggsave(
-      file.path(out, iter, "cluster_scatter_motif.png"),
-      width = 6,
-      height = 5,
-      viz[[3]]
-    )
-
-
     switch(iteration_approach,
       "remove_biggest_cluster" = {
         # Identify biggest cluster
-        clusters_to_keep <- clusters$HDBSCAN %>%
+        clusters_to_keep <- clusters$cluster %>%
           table() %>%
           sort(decreasing = TRUE) %>%
           `[`(-1) %>%
@@ -654,7 +694,7 @@ find_motifs <- function(
           as.numeric()
         # Remove biggest cluster events from `chunks`
         clusters_kept <- clusters[
-            HDBSCAN %in% c(clusters_to_keep, NA), .SD, .SDcols = c("pos_ref", "chunk_ref", "HDBSCAN")
+            cluster %in% c(clusters_to_keep, NA), .SD, .SDcols = c("pos_ref", "chunk_ref", "cluster")
           ][
             , keep := TRUE
           ]
@@ -668,7 +708,7 @@ find_motifs <- function(
       "remove_noise" = {
         # Remove noise events from `chunks`
         clusters_kept <- clusters[
-            !is.na(HDBSCAN), .SD, .SDcols = c("pos_ref", "chunk_ref", "HDBSCAN")
+            !is.na(cluster), .SD, .SDcols = c("pos_ref", "chunk_ref", "cluster")
           ][
             , keep := TRUE
           ]

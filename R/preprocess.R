@@ -1,41 +1,8 @@
-#' Adds signal to a complete chunk
-#' 
-#' Iterator for adding signal to all bacthes and type (nat and pcr) of a 
-#' chunk of the chunk list outputted by prepare_metainfo
-#' 
-#' @param metainfo_chunk a list of batches, with NAt and PCR metainfo
-#' @param hdf5 a list of nat and pcr hdf5 objects
-#' @return logical of success status (signal is loaded in memory)
-#' @export
-add_signal_chunk <- function(metainfo_chunk, hdf5_list) {
-  batches <- names(metainfo_chunk)
-  successfully_read <- lapply(batches,
-  function(batch) {
-    logger::log_debug(glue::glue("\tProcessing {batch}"))
-    types <- names(metainfo_chunk[[batch]])
-    lapply(types,
-    function(type) {
-      logger::log_debug(glue::glue("\t\t{type}"))
-      tryCatch(
-        add_signal(
-          metainfo_chunk[[batch]][[type]],
-          hdf5_list[[type]],
-          batch
-        ),
-        error = function(e) FALSE
-      )
-    } # type
-    )
-  } # batch
-  )
-}
-
-
 #' Prepare chunks for signal loading
-#' 
+#'
 #' Function to process signal and read mappings,
 #' ready for signal loading
-#' 
+#'
 #' @param nat_mapping Path to NAT sorted bam file
 #' @param pcr_mapping Path to PCR sorted bam file
 #' @param hdf5 list of nat and pcr hdf5 objects
@@ -53,21 +20,20 @@ prepare_metainfo <- function(
                        threads = 1,
                        debug = FALSE,
                        pvp = FALSE) {
-  
-  if (debug) {logger::log_threshold(logger::TRACE)}
+  if (debug) logger::log_threshold(logger::TRACE)
 
   logger::log_debug("Loading read mapping")
-  pcr <- load_mapping(pcr_mapping)
+  pcr <- load_read_mapping(pcr_mapping)
   pcr[, type := "pcr"]
 
   pcr_hdf5_obj <- hdf5r::H5File$new(pcr_hdf5, mode = "r")
   if (pvp) {
     read_mapping <- pcr[
-        sample(1:.N, .N/2), type := "nat"
+        sample(seq_len(.N), .N / 2), type := "nat"
       ]
     nat_hdf5_obj <- pcr_hdf5_obj
   } else {
-    nat <- load_mapping(nat_mapping)
+    nat <- load_read_mapping(nat_mapping)
     nat[, type := "nat"]
     nat_hdf5_obj <- hdf5r::H5File$new(nat_hdf5, mode = "r")
     read_mapping <- rbind(pcr, nat)
@@ -78,23 +44,23 @@ prepare_metainfo <- function(
     ]
   read_mapping <- rbind(
       read_mapping,
-      get_overextending_reads(read_mapping, chunk_size)
+      process_multichunk_reads(read_mapping, chunk_size)
   )
   read_mapping <- downsample(read_mapping,  chunk_size = chunk_size)
 
 
-  metainfo_nat <- read_metainfo_all(nat_hdf5_obj)
-  metainfo_pcr <- read_metainfo_all(pcr_hdf5_obj)
+  metainfo_nat <- load_metainfo_all(nat_hdf5_obj)
+  metainfo_pcr <- load_metainfo_all(pcr_hdf5_obj)
 
   metainfo <- rbind(
     metainfo_nat[
       read_mapping[type == "nat"],
-      on = c('read_id'='qname'),
+      on = c("read_id" = "qname"),
       nomatch = NULL
     ],
     metainfo_pcr[
       read_mapping[type == "pcr"],
-      on = c('read_id'='qname'),
+      on = c("read_id" = "qname"),
       nomatch = NULL
     ]
   )
@@ -104,10 +70,14 @@ prepare_metainfo <- function(
   ]
   rm(read_mapping)
   gc()
-  no_cov_chunk <- metainfo[length(unique(type)) < 2, chunk_ref, by = chunk_ref]$chunk_ref %>%
+  no_cov_chunk <- metainfo[
+      length(unique(type)) < 2, chunk_ref, by = chunk_ref
+    ]$chunk_ref %>%
     unique()
   if (length(no_cov_chunk) > 0) {
-    logger::log_warn(paste0("NAT or PCR missing: ", paste(no_cov_chunk, collapse = ", ")))
+    logger::log_warn(
+      paste0("NAT or PCR missing: ", paste(no_cov_chunk, collapse = ", "))
+    )
     metainfo <- metainfo[!(chunk_ref %in% no_cov_chunk)]
   }
 
@@ -119,15 +89,147 @@ prepare_metainfo <- function(
   return(metainfo_chunk)
 }
 
+################################################################################
+
+#' Load sorted read mappings
+#'
+#' Load read mapping required for correct assignment of signal mapping reference.
+#'
+#' @param path_mapping Preprocessed signal mappings
+#' @return read mapping data.table
+#' @import data.table
+#' @export
+load_read_mapping <- function(path_mapping) {
+  if (!file.exists(glue::glue("{path_mapping}.bai"))) {
+    Rsamtools::indexBam(path_mapping)
+  }
+  what <- c("qname", "rname", "pos", "strand", "qwidth")
+  param <- Rsamtools::ScanBamParam(what = what)
+  read_mapping <-
+    Rsamtools::scanBam(
+      path_mapping,
+      param = param,
+      index = glue::glue("{path_mapping}.bai")
+    ) %>%
+    unlist(recursive = FALSE)
+  setDT(read_mapping)
+}
+
+################################################################################
+
+#' Get read mappings that overextent their chunk
+#'
+#' Gets the read that overextent their assigned chunk and return dt with new 
+#' chunk assignments
+#'
+#'
+#' @param read_mapping Read mapping dt
+#' @param chunk_size Size of chunks
+#' @return read mapping data.table
+#' @import data.table
+#' @export
+process_multichunk_reads <- function(read_mapping, chunk_size) {
+  cnames <- colnames(read_mapping)[!(colnames(read_mapping) == "chunk")]
+  max_chunk <- max(read_mapping$chunk)
+  corrected_read_mappings <- read_mapping[
+      pos + qwidth > (1 + chunk) * chunk_size,
+    ][
+      , over_extension := pos + qwidth - (1 + chunk) * chunk_size
+    ][
+      , .(chunk = 1:(1 + over_extension %/% chunk_size) + chunk),
+      by = mget(cnames)
+    ][
+      chunk <= max_chunk
+    ]
+  unnest_dt(corrected_read_mappings, "chunk", cnames)
+}
+
+################################################################################
+
+#' Downsample either nat or pcr to least abundant type
+#'
+#' Removes read of the most bundant mapping type, such there are almost equal mapped bases of each type to each chunk.
+#'
+#'
+#' @param read_mapping Preprocessed signal mappings
+#' @param chunk_size size of chunks
+#' @param min_cov Minimum coverage of type
+#' @return read mapping data.table
+#' @import data.table
+#' @export
+downsample <- function(read_mapping, chunk_size, min_cov = 20) {
+  min_chunk_cov <- min_cov * chunk_size
+  read_mapping <- read_mapping[sample(seq_len(nrow(read_mapping)))]
+  read_mapping[
+      , read_chunk_cov := fcase(
+          pos + qwidth > (chunk + 1) * chunk_size,  as.integer((chunk + 1) * chunk_size - pos),
+          pos < chunk * chunk_size, as.integer(pos + qwidth - chunk * chunk_size),
+          rep(TRUE, length(pos)), qwidth
+        )
+    ][
+      , coverage := cumsum(as.numeric(read_chunk_cov)), by = .(type, chunk, strand)
+    ][
+      , max_coverage := max(coverage), by = .(type, chunk, strand)
+    ][
+      , max_allowed := min(max_coverage), by = .(chunk, strand)
+    ][
+      (coverage < max_allowed) | (coverage < min_chunk_cov),
+    ][
+      , `:=`(max_coverage = NULL, max_allowed = NULL)
+    ]
+}
+
+################################################################################
+
 #' Read metainfo from signal_mappings.hdf
-#' 
+#'
+#' This function load all  metainformation in a singal mapping hdf5 file.
+#'
+#' @param hdf5 Open hdf5 object
+#' @return list of data.tables with metainformation of all batches
+#' @export
+load_metainfo_all <- function(hdf5) {
+  batches <- get_batches(hdf5)
+  rbindlist(
+    lapply(
+      batches,
+      function(batch) {
+        signal_mapping <- load_metainfo(hdf5, batch)
+        signal_mapping[, batch := batch]
+        return(signal_mapping)
+      }
+    )
+  )
+}
+
+################################################################################
+
+#' See which batches are present in signal_mappings.hdf
+#'
+#'
+#'
+#' @param hdf5 Open signal_mappings.hdf5 hdf5 object
+#' @return vector with batch names
+#' @export
+get_batches <- function(hdf5) {
+  hdf5r::list.datasets(hdf5) %>%
+    stringr::str_extract("Batch_[\\d]*") %>%
+    na.omit() %>%
+    c() %>%
+    unique()
+}
+
+################################################################################
+
+#' Read metainfo from signal_mappings.hdf
+#'
 #' This function load metainformation of each read in a batch in a singal mapping hdf5 file.
-#' 
+#'
 #' @param hdf5 Open hdf5 object
 #' @param batch Batch to read from
 #' @return data.table with metainformation
 #' @export
-read_metainfo = function(hdf5, batch) {
+load_metainfo <- function(hdf5, batch) {
   metainfo <- data.table::data.table(
     Ref_to_signal_lengths = hdf5[[glue::glue("Batches/{batch}/Ref_to_signal_lengths")]][],
     Dacs_lengths = hdf5[[glue::glue("Batches/{batch}/Dacs_lengths")]][],
@@ -148,166 +250,4 @@ read_metainfo = function(hdf5, batch) {
     ][
       , ref_to_signal_start := ref_to_signal_end - Ref_to_signal_lengths + 1
     ]
-}
-
-#' Read metainfo from signal_mappings.hdf
-#' 
-#' This function load all  metainformation in a singal mapping hdf5 file.
-#' 
-#' @param hdf5 Open hdf5 object
-#' @return list of data.tables with metainformation of all batches
-#' @export
-read_metainfo_all <- function(hdf5) {
-  batches <- get_batches(hdf5)
-  rbindlist(
-    lapply(
-      batches,
-      function(batch){
-        signal_mapping = read_metainfo(hdf5, batch)
-        signal_mapping[, batch := batch]
-        return(signal_mapping)
-      }
-    )
-  )
-}
-
-#' See which batches are present in signal_mappings.hdf
-#' 
-#' 
-#' 
-#' @param hdf5 Open signal_mappings.hdf5 hdf5 object
-#' @return vector with batch names
-#' @export
-get_batches <- function(hdf5){
-  hdf5r::list.datasets(hdf5) %>%
-    stringr::str_extract("Batch_[\\d]*") %>%
-    na.omit() %>%
-    c() %>%
-    unique()
-}
-
-#' Add signal mapping to metainfo
-#' 
-#' Loads the signal mappings associated with a batch
-#' 
-#' @param metainfo data.table of metainfo loaded with read_metainfo
-#' @param hdf5_obj Open hdf5 object
-#' @param batch Batch to load signal mappings from
-#' @return Nothing, signal mappings will be added to the metainfo object in memory
-#' @export
-add_signal = function(metainfo, hdf5_obj, batch) {
-  # Input checks
-  assert::assert({
-    required_columns <- c(
-      "ref_to_signal_start",
-      "ref_to_signal_end",
-      "dacs_start",
-      "dacs_end",
-      "read_id",
-      "offset",
-      "range",
-      "digitisation",
-      "shift_frompA",
-      "scale_frompA")
-    all(required_columns %in% names(metainfo))
-    },
-    msg = paste0(
-      "Following required columns are missing: ",
-      paste0(
-        required_columns[!required_columns %in% names(metainfo)],
-        collapse = ", "
-      )
-    )
-  )
-
-  assert::assert({
-    duplicated_read_ids <- which(duplicated(metainfo$read_id))
-    length(duplicated_read_ids) == 0
-    },
-    msg = paste0(
-      "Following rows have duplicate read_ids: ",
-      paste0(duplicated_read_ids, collapse = ", ")
-    )
-  )
-  logger::log_trace(glue::glue("\t\t\tAdding ref to signal"))
-  # +1 as R, compared to python, indexes from 1
-  metainfo[
-      , ref_to_signal := list(
-              list(hdf5_obj[[glue::glue('/Batches/{batch}/Ref_to_signal')]][ref_to_signal_start:ref_to_signal_end] + 1)
-              ),
-      by = read_id
-    ]
-  logger::log_trace(glue::glue("\t\t\tAdding dacs"))
-  metainfo[
-      , dacs := list(
-              list(hdf5_obj[[glue::glue('/Batches/{batch}/Dacs')]][dacs_start:dacs_end])
-              ),
-      by = read_id
-    ]
-  logger::log_trace(glue::glue("\t\t\tDacs to current"))
-  metainfo[
-      , current := list(
-          list(((unlist(dacs) + offset) * range) / digitisation)
-        ),
-      by = read_id
-    ][
-      , `:=`(
-        dacs = NULL,
-        offset = NULL,
-        range = NULL,
-        digitisation = NULL
-        )
-    ]
-  logger::log_trace(glue::glue("\t\t\tNormalising current"))
-  metainfo[
-      , current_norm := list(
-          list((unlist(current) - shift_frompA) / scale_frompA)
-        ),
-      by = read_id
-    ][
-      , `:=`(
-        current = NULL,
-        shift_frompA = NULL,
-        scale_frompA = NULL
-        )
-    ]
-  logger::log_trace(glue::glue("\t\t\tAdding reference position to signal"))
-  metainfo[
-      , signal := list(
-          list(add_index_to_vector(unlist(ref_to_signal), unlist(current_norm)))
-        ),
-      by = read_id
-    ][
-      , `:=`(current_norm = NULL)
-    ]
-
-}
-
-
-#' Load signal mappings of one batch
-#' 
-#' Loads the signal mappings associated with a batch
-#' 
-#' @param signal data.table of metainfo loaded with read_metainfo
-#' @param chunk_size integer, size of chunk 
-#' @return data.table
-#' @export
-get_reference_context <- function(signal_dt, chunk_size) {
-  signal_unlisted <- signal_dt[
-      , list(unlist(signal, recursive = FALSE)), by = .(read_id, type, chunk, reference, pos, strand)
-    ]
-    setnames(signal_unlisted, "V1", "signal")
-    signal_unlisted[
-      strand == "+", pos_read := 1:.N, by = .(read_id, chunk)
-    ][
-      strand == "-", pos_read := .N:1, by = .(read_id, chunk)
-    ][
-      ,
-      pos_ref := pos + pos_read - 1
-    ][
-      pos_ref <= (chunk + 1) * chunk_size
-    ][
-      pos_ref >= (chunk) * chunk_size
-    ]
-  return(signal_unlisted)
 }

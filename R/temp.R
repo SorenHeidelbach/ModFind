@@ -19,3 +19,12 @@ filter_signal_mapping = function(signal_mapping, read_id_keep) {
 
 
 
+
+
+add_reference <- function(chunk, sequence) {
+  chunk[
+      strand == "+", base := toupper(sequence[pos_ref])
+    ][
+      strand == "-", base := get_complement_sequence(sequence[pos_ref])
+    ]
+}
