@@ -8,7 +8,7 @@ embed_and_cluster(
   chunks,
   ref_path,
   out,
-  p_value_threshold = 1e-06,
+  event_pval_limit = 1e-30,
   event_sequence_frame = 5,
   umap_args = list(),
   hdbscan_args = list()
@@ -21,12 +21,12 @@ embed_and_cluster(
 
 \item{out}{character string with path to output results}
 
-\item{p_value_threshold}{Numeric, max p-value for events}
+\item{event_pval_limit}{Numeric, max p-value for events}
 
 \item{event_sequence_frame}{integer, number of nucleotide to include to each side}
 
 \item{umap_args}{list of arguments passed directly to umap (See ?umap::umap)
-https://cran.r-project.org/web/packages/umap/vignettes/umap.html}
+https://cran.r-project.org/web/packages/umap/vignettes/umap.html#configuration-objects}
 
 \item{hdbscan_Args}{list of arguments passed directly to hdbscan (See ?dbscan::hdbscan)}
 }

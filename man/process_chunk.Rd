@@ -4,13 +4,7 @@
 \alias{process_chunk}
 \title{Process chunk}
 \usage{
-process_chunk(
-  chunk_list,
-  nat_hdf5,
-  pcr_hdf5,
-  chunk_size,
-  plot_path = paste0("./current_plots/", unique(chunk_list[[1]][[1]]$chunk_ref), "/")
-)
+process_chunk(chunk_list, nat_hdf5, pcr_hdf5, chunk_size, plot_path)
 }
 \arguments{
 \item{chunk_list}{list of batches with nat and pcr metainfo}
