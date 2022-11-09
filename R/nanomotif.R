@@ -54,7 +54,11 @@ nanomotif <- function(
   if (chunks_per_contig > 0) {
     # Select specified number of chunks
     metainfo <- metainfo[
-      chunk %in% sample(seq_len(max(chunk)), chunks_per_contig),
+      , chunks_keep := chunk %in% sample(seq_len(max(chunk)), chunks_per_contig), by = .(reference)
+    ][
+      chunks_keep == TRUE,
+    ][
+      , chunks_keep := NULL
     ]
   }
   metainfo_chunk <- split(
