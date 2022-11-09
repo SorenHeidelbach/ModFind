@@ -35,8 +35,8 @@ nanomotif(
     pcr_mapping = pcr_mapping,
     nat_signal = nat_signal,
     pcr_signal = pcr_signal,
-    reference_path = reference_path
-    out = out,
+    reference_path = reference_path,
+    out = out
 )
 
 
