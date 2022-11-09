@@ -21,6 +21,7 @@ preprocess_all_chunks <- function(
     metainfo,
     function(x) {
       # For future, worker nodes to copy in memory to acces in nested functions
+      try(
       x <- copy(x)
       chunk_reference <- unique(x[[1]][[1]]$chunk_ref)
       logger::log_debug(chunk_reference)
@@ -37,6 +38,7 @@ preprocess_all_chunks <- function(
       dir.create(chunk_out_path, recursive = TRUE)
       fwrite(chunk_stats, paste_path(chunk_out_path, "chunk.tsv"))
       rm(chunk_stats)
+      )
     },
     future.seed = TRUE
   )
