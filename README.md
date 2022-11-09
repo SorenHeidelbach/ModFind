@@ -3,7 +3,8 @@
 ## Overview
 
 Theese functions process the output of megalodon and identify modified motifs. 
-It depends on singal and read mappings from both natural reads (NAT) and non-modified reads (PCR).
+It depends on signal and read mappings from both natural reads (NAT) and non-modified reads (PCR).
+
 File inputs are 
 
 - signal_mappings to reference/assembly (NAT and PCR)
