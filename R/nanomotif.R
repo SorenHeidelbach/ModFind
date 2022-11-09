@@ -39,7 +39,8 @@ nanomotif <- function(
   align_event_sequences = TRUE,
   iterations = 1,
   min_entropy = 1,
-  chunks_per_contig = 0 # 0 = keep all
+  chunks_per_contig = 0, # 0 = keep all
+  select_contigs = "all"
 ) {
   # Load read metainfo
   metainfo <- prepare_metainfo(
@@ -52,13 +53,19 @@ nanomotif <- function(
   )
 
   if (chunks_per_contig > 0) {
-    # Select specified number of chunks
+    # Select specified number of chunks per contig
     metainfo <- metainfo[
       , chunks_keep := (chunk+1) %in% sample(seq_len(max(chunk+1)), min(chunks_per_contig, max(chunk+1))), by = .(reference)
     ][
       chunks_keep == TRUE,
     ][
       , chunks_keep := NULL
+    ]
+  }
+  if (select_contigs != "all") {
+    # Select only some contigs
+    metainfo <- metainfo[
+      reference %in% select_contigs
     ]
   }
   metainfo_chunk <- split(
