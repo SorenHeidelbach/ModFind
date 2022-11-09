@@ -37,7 +37,8 @@ preprocess_all_chunks <- function(
       dir.create(chunk_out_path, recursive = TRUE)
       fwrite(chunk_stats, paste_path(chunk_out_path, "chunk.tsv"))
       rm(chunk_stats)
-    }
+    },
+    future.seed = TRUE
   )
 }
 

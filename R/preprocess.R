@@ -19,7 +19,8 @@ prepare_metainfo <- function(
                        chunk_size = 1e5,
                        threads = 1,
                        debug = FALSE,
-                       pvp = FALSE) {
+                       pvp = FALSE,
+                       max_cov = 200) {
   if (debug) logger::log_threshold(logger::TRACE)
 
   logger::log_debug("Loading read mapping")
@@ -46,7 +47,7 @@ prepare_metainfo <- function(
       read_mapping,
       process_multichunk_reads(read_mapping, chunk_size)
   )
-  read_mapping <- downsample(read_mapping,  chunk_size = chunk_size)
+  read_mapping <- downsample(read_mapping,  chunk_size = chunk_size, max_cov = max_cov)
 
 
   metainfo_nat <- load_metainfo_all(nat_hdf5_obj)
@@ -81,12 +82,8 @@ prepare_metainfo <- function(
     metainfo <- metainfo[!(chunk_ref %in% no_cov_chunk)]
   }
 
-  metainfo_chunk <- split(
-    metainfo,
-    by = c("chunk_ref", "batch", "type"),
-    flatten = FALSE
-  )
-  return(metainfo_chunk)
+
+  return(metainfo)
 }
 
 ################################################################################
@@ -157,8 +154,10 @@ process_multichunk_reads <- function(read_mapping, chunk_size) {
 #' @return read mapping data.table
 #' @import data.table
 #' @export
-downsample <- function(read_mapping, chunk_size, min_cov = 20) {
-  min_chunk_cov <- min_cov * chunk_size
+downsample <- function(read_mapping, chunk_size, min_cov = 20, max_cov = 200) {
+  min_cov_chunk <- min_cov * chunk_size
+  max_cov_chunk <- max_cov * chunk_size
+  # Randomise order of reads
   read_mapping <- read_mapping[sample(seq_len(nrow(read_mapping)))]
   read_mapping[
       , read_chunk_cov := fcase(
@@ -173,7 +172,7 @@ downsample <- function(read_mapping, chunk_size, min_cov = 20) {
     ][
       , max_allowed := min(max_coverage), by = .(chunk, strand)
     ][
-      (coverage < max_allowed) | (coverage < min_chunk_cov),
+      (coverage < max_cov_chunk),
     ][
       , `:=`(max_coverage = NULL, max_allowed = NULL)
     ]

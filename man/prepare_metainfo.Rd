@@ -12,7 +12,8 @@ prepare_metainfo(
   chunk_size = 1e+05,
   threads = 1,
   debug = FALSE,
-  pvp = FALSE
+  pvp = FALSE,
+  max_cov = 200
 )
 }
 \arguments{

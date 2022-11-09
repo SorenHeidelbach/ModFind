@@ -4,7 +4,7 @@
 \alias{downsample}
 \title{Downsample either nat or pcr to least abundant type}
 \usage{
-downsample(read_mapping, chunk_size, min_cov = 20)
+downsample(read_mapping, chunk_size, min_cov = 20, max_cov = 200)
 }
 \arguments{
 \item{read_mapping}{Preprocessed signal mappings}

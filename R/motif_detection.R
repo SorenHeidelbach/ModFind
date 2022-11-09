@@ -31,7 +31,10 @@ embed_and_cluster <- function(
     chunks,
     event_pval_limit
   )
-
+  logger::log_debug(glue::glue("Events: {nrow(features)}"))
+  if (nrow(features) < 50) {
+    stop("Number of events too low")
+  }
   features_metainfo <- features[
     , .SD, .SDcols = !(grepl("diff", names(features)))
   ]
@@ -50,7 +53,6 @@ embed_and_cluster <- function(
   ]
 
   replace_na_dt(features, 0)
-  logger::log_debug(glue::glue("Events: {nrow(features)}"))
 
   # Embedding
   logger::log_debug("Embedding")
@@ -154,6 +156,7 @@ cluster_embedding <- function(
   # add embedding to cluster arguments
   hdbscan_args$x <- embedding
   clustering <- do.call(dbscan::hdbscan, hdbscan_args)
+  logger::log_debug(paste0("Clusters found:", length(unique(clustering$cluster)) - 1))
   embedding[
       , cluster := clustering$cluster
     ][
@@ -652,6 +655,13 @@ find_motifs <- function(
           toupper(x$seq)
         }
       )
+    if (length(cluster_sequences) == 0) {
+      logger::log_debug("No clusters")
+      clusters[
+        , motif := ""
+      ]
+      break()
+    }
     if (align_event_sequences) {
       cluster_sequences_aligned <- lapply(
         cluster_sequences,
@@ -663,7 +673,6 @@ find_motifs <- function(
       names(cluster_sequences_aligned) <- names(cluster_sequences)
       cluster_sequences <- cluster_sequences_aligned
     }
-
     # Calculate entropy and select motifs
     add_motifs <- function(cluster_sequences) {
       cluster_entropy <- lapply(
