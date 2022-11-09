@@ -28,36 +28,15 @@ nat_signal = "nat/signal_mappings.hdf5"
 pcr_signal = "pcr/signal_mappings.hdf5"
 reference_path = "path/to/reference.fasta"
 out = "path/to/output"
-chunk_size = 1e5
 
-# Load read metainfo
-metainfo <- prepare_metainfo(
-  nat_mapping = nat_mapping,
-  pcr_mapping = pcr_mapping,
-  nat_hdf5 = nat_signal,
-  pcr_hdf5 = pcr_signal,
-  chunk_size = chunk_size
-)
-
-# Process chunked reads
-preprocess_all_chunks(
-  metainfo = metainfo,
-  nat_hdf5 = nat_signal,
-  pcr_hdf5 = pcr_signal,
-  out = out,
-  chunk_size = chunk_size
+nanomotif(
+    nat_mapping = nat_mapping,
+    pcr_mapping = pcr_mapping,
+    nat_signal = nat_signal,
+    pcr_signal = pcr_signal,
+    reference_path = reference_path
+    out = out,
 )
 
-# Identify motifs
-find_motifs(
-  path_chunk_stats = out,
-  path_ref = reference,
-  out = out
-)
-plot_motifs(
-  cluster_path = file.path(out, "/1/clusters.tsv"),
-  plot_out  = file.path(out, "/1"),
-  path_ref = reference,
-  chunks_path = out
-)
+
 ```
