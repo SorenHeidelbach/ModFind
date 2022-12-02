@@ -12,34 +12,39 @@
 #' @return metainfo list with nested bacthes and types
 #' @export
 prepare_metainfo <- function(
-                       nat_mapping,
-                       pcr_mapping,
-                       nat_hdf5,
-                       pcr_hdf5,
-                       chunk_size = 1e5,
-                       threads = 1,
-                       debug = FALSE,
-                       pvp = FALSE,
-                       max_cov = 200) {
-  if (debug) logger::log_threshold(logger::TRACE)
-
+  nat_mapping,
+  pcr_mapping,
+  nat_hdf5,
+  pcr_hdf5,
+  chunk_size = 1e5,
+  threads = 1,
+  debug = FALSE,
+  pvp = FALSE,
+  max_cov = 200
+) {
   logger::log_debug("Loading read mapping")
+  logger::log_trace("  Loading PCR read mapping")
   pcr <- load_read_mapping(pcr_mapping)
   pcr[, type := "pcr"]
 
+  logger::log_trace("  Opening connection to PCR signal_mappings")
   pcr_hdf5_obj <- hdf5r::H5File$new(pcr_hdf5, mode = "r")
   if (pvp) {
+    logger::log_trace("  Running in PvP mode, half of PCR is treated as NAT")
     read_mapping <- pcr[
         sample(seq_len(.N), .N / 2), type := "nat"
       ]
     nat_hdf5_obj <- pcr_hdf5_obj
   } else {
+    logger::log_trace("  Loading NAT read mapping")
     nat <- load_read_mapping(nat_mapping)
     nat[, type := "nat"]
+    logger::log_trace("  Opening connection to NAT signal_mappings")
     nat_hdf5_obj <- hdf5r::H5File$new(nat_hdf5, mode = "r")
     read_mapping <- rbind(pcr, nat)
   }
 
+  logger::log_trace("  Chunking reference")
   read_mapping[
       , chunk := pos %/% chunk_size
     ]
@@ -47,12 +52,16 @@ prepare_metainfo <- function(
       read_mapping,
       process_multichunk_reads(read_mapping, chunk_size)
   )
+
+  logger::log_trace(paste0("  Downsampling chunks with coverage above ", max_cov))
   read_mapping <- downsample(read_mapping,  chunk_size = chunk_size, max_cov = max_cov)
 
-
+  logger::log_trace("  Loading NAT signal mapping metainfo")
   metainfo_nat <- load_metainfo_all(nat_hdf5_obj)
+  logger::log_trace("  Loading PCR signal mapping metainfo")
   metainfo_pcr <- load_metainfo_all(pcr_hdf5_obj)
 
+  logger::log_trace("  Joining read mapping and signal mapping")
   metainfo <- rbind(
     metainfo_nat[
       read_mapping[type == "nat"],
