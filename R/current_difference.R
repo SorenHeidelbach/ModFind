@@ -22,17 +22,17 @@ preprocess_all_chunks <- function(
     function(x) {
       # For future, worker nodes to copy in memory to acces in nested functions
       try({
-      x <- copy(x)
-      chunk_reference <- unique(x[[1]][[1]]$chunk_ref)
+      chunk <- copy(x)
+      chunk_reference <- unique(chunk[[1]][[1]]$chunk_ref)
       logger::log_debug(chunk_reference)
       chunk_stats <- process_chunk(
-          x,
+          chunk,
           nat_hdf5 = nat_hdf5,
           pcr_hdf5 = pcr_hdf5,
           chunk_size = chunk_size,
           plot_path = out
         )
-      rm(x)
+      rm(chunk)
       chunk_stats[, chunk_ref := chunk_reference]
       chunk_out_path <- paste_path(out, "/chunks/", chunk_reference)
       dir.create(chunk_out_path, recursive = TRUE)

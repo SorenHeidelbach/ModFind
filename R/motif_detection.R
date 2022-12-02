@@ -22,10 +22,13 @@ embed_and_cluster <- function(
     event_pval_limit = 1e-30,
     event_sequence_frame = 5,
     umap_args = list(),
-    hdbscan_args = list()
+    hdbscan_args = list(),
+    rolling_mean_k = 5
   ) {
   checkmate::assert_data_table(chunks)
-
+  chunk_stats[
+  , p_val := 10^(zoo::rollmean(log10(p_val + 1e-300), k = rolling_mean_k, fill = NA)), by = strand
+  ]
   # Prepare features for embedding
   features <- get_event_features(
     chunks,
@@ -384,7 +387,7 @@ plot_motifs  <- function(
   n_extra_positions = 7,
   motifs_evaluated = "all"
 ) {
-  chunks <- load_processed_chunks(chunks_path)
+  chunks <- fread(chunks_path)
   clusters <- fread(cluster_path)
   motifs <- unique(clusters$motif)
   motifs <- motifs[nchar(motifs) > 1]
@@ -627,10 +630,11 @@ find_motifs <- function(
   align_event_sequences = TRUE,
   iterations = 3,
   iteration_approach = "remove_noise",
-  entropy_threshold_motif = 1
+  entropy_threshold_motif = 1,
+  rolling_mean_k = 5
 ) {
   # Load processed chunks
-  chunks <- load_processed_chunks(path_chunk_stats)
+  chunks <- fread(path_chunk_stats)
   continue <- TRUE
   iter <- 1
   while (continue) {
@@ -644,7 +648,8 @@ find_motifs <- function(
       event_pval_limit = event_pval_limit,
       event_sequence_frame = event_sequence_frame,
       umap_args = umap_args,
-      hdbscan_args = hdbscan_args
+      hdbscan_args = hdbscan_args,
+      rolling_mean_k = rolling_mean_k
     )
     # Get cluster events sequences
     setorder(clusters, cluster)

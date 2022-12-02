@@ -40,8 +40,13 @@ nanomotif <- function(
   iterations = 1,
   min_entropy = 1,
   chunks_per_contig = 0, # 0 = keep all
-  select_contigs = "all"
+  select_contigs = "all",
+  rolling_mean_k = 5
 ) {
+  # Setting up logger
+  logger::log_threshold(logger::TRACE)
+  log_appender(appender_file(file.path(out, "log.txt")))
+
   # Load read metainfo
   metainfo <- prepare_metainfo(
     nat_mapping = nat_mapping,
@@ -100,7 +105,6 @@ nanomotif <- function(
       cluster_path = file.path(out, "/", i, "/clusters.tsv"),
       plot_out  = file.path(out, "/", i),
       chunks_path = out,
-      motifs_evaluated  = "clustered",
       path_ref = reference_path
     )
   }
