@@ -26,7 +26,7 @@ embed_and_cluster <- function(
     rolling_mean_k = 5
   ) {
   checkmate::assert_data_table(chunks)
-  chunk_stats[
+  chunks[
   , p_val := 10^(zoo::rollmean(log10(p_val + 1e-300), k = rolling_mean_k, fill = NA)), by = strand
   ]
   # Prepare features for embedding
